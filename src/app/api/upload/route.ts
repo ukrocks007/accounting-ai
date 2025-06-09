@@ -73,7 +73,14 @@ async function processFileWithLLM(filepath: string) {
     const repairedJson = jsonrepair(result.choices[0].message.content);
     const parsedResult = JSON.parse(repairedJson);
     // if (response.ok) {
-      return parsedResult.rows;
+    if ((parsedResult?.rows || []).length) {
+        const lastRow = parsedResult.rows[parsedResult.rows.length - 1];
+        if (lastRow.date && lastRow.description && (lastRow.credit || lastRow.debit)) {
+            return parsedResult.rows;
+        } else {
+            return parsedResult.rows.slice(0, -1); // Remove the last row if it doesn't have valid data
+        }
+    }
     // } else {
     //   throw new Error(parsedResult.error || 'Failed to process file with LLM');
     // }
