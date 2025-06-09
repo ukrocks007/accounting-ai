@@ -17,7 +17,10 @@
     "react-dom": "^19.0.0",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "@azure-rest/ai-inference": "latest",
+    "@azure/core-auth": "latest",
+    "@azure/core-sse": "latest"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
