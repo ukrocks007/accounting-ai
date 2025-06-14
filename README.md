@@ -1,9 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Accounting AI 🤖💰
+
+An intelligent accounting assistant powered by AI that helps you analyze financial data, upload bank statements, and get insights through natural language conversations.
+
+## Features
+
+- 📊 **File Upload & Processing**: Upload Excel (.xls, .xlsx), CSV, and PDF bank statements
+- 💬 **AI Chat Interface**: Ask questions about your financial data in natural language
+- 🔍 **Smart Data Analysis**: Get insights, trends, and summaries of your transactions
+- 📈 **Transaction Management**: Automatically parse and store transaction data
+- 🛡️ **Secure Database**: SQLite database with read-only query protection
+- 🎨 **Modern UI**: Clean, responsive interface built with Tailwind CSS
+
+## Tech Stack
+
+- **Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS
+- **Backend**: Next.js API Routes, SQLite Database
+- **AI Integration**: Azure AI Inference API
+- **File Processing**: XLSX for Excel files, Multer for file uploads
+- **Database**: SQLite3 with sqlite package
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
+- Node.js 18+ installed
+- npm, yarn, pnpm, or bun package manager
+
+### Installation
+
+1. Clone the repository:
+```bash
+git clone <your-repo-url>
+cd accounting-ai
+```
+
+2. Install dependencies:
+```bash
+npm install
+# or
+yarn install
+# or
+pnpm install
+```
+
+3. Set up environment variables:
+Create a `.env.local` file in the root directory and add your Azure AI credentials:
+```env
+AZURE_AI_ENDPOINT=your_azure_endpoint
+AZURE_AI_KEY=your_azure_key
+```
+
+4. Run the development server:
 ```bash
 npm run dev
 # or
@@ -14,23 +61,82 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Usage
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Uploading Files
 
-## Learn More
+1. Click on the file upload area or drag and drop your files
+2. Supported formats: `.xls`, `.xlsx`, `.csv`, `.pdf`
+3. Click "Upload" to process the file
+4. Your transaction data will be automatically parsed and stored
 
-To learn more about Next.js, take a look at the following resources:
+### Chatting with Your Data
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Once you've uploaded files, you can:
+- Ask questions like "What's my total spending this month?"
+- Request analysis: "Show me my largest expenses"
+- Get summaries: "Summarize my account activity"
+- Query specific data: "Find all transactions over $500"
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## API Endpoints
 
-## Deploy on Vercel
+- `POST /api/upload` - Upload and process financial documents
+- `POST /api/chat` - Chat with AI about your financial data
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Database Schema
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The application uses SQLite with a `statements` table containing:
+- Transaction ID
+- Date
+- Description
+- Amount
+- Type (credit/debit)
+- Account information
+
+## Development
+
+### Scripts
+
+- `npm run dev` - Start development server with debugging
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint
+
+### Project Structure
+
+```
+src/
+├── app/
+│   ├── api/
+│   │   ├── chat/          # AI chat endpoint
+│   │   └── upload/        # File upload endpoint
+│   ├── globals.css        # Global styles
+│   ├── layout.tsx         # Root layout
+│   └── page.tsx          # Main application page
+└── uploads/              # Uploaded files storage
+```
+
+## Security Features
+
+- Read-only database queries to prevent data modification
+- Input sanitization and validation
+- Secure file upload handling
+- Environment variable protection for API keys
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests and linting
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License.
+
+## Support
+
+For support, please open an issue in the GitHub repository or contact the development team.
