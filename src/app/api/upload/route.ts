@@ -20,6 +20,7 @@ async function saveToDatabase(
     driver: sqlite3.Database,
   });
 
+  // Create main statements table if it doesn't exist
   await db.exec(`CREATE TABLE IF NOT EXISTS statements (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     date TEXT,
@@ -27,6 +28,9 @@ async function saveToDatabase(
     amount REAL,
     type TEXT
   )`);
+
+  // Clear existing data (since we're not tracking files anymore)
+  await db.run('DELETE FROM statements');
 
   const insertStatement = `INSERT INTO statements (date, description, amount, type) VALUES (?, ?, ?, ?)`;
 
@@ -39,6 +43,8 @@ async function saveToDatabase(
       row.type
     );
   }
+
+  await db.close();
 }
 
 async function processFileWithLLM(filepath: string) {

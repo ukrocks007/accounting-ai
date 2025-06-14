@@ -7,6 +7,8 @@ export default function Home() {
   const [message, setMessage] = useState("");
   const [chatInput, setChatInput] = useState("");
   const [chatResponse, setChatResponse] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0] || null;
@@ -19,6 +21,7 @@ export default function Home() {
       return;
     }
 
+    setIsUploading(true);
     const formData = new FormData();
     formData.append("file", file);
 
@@ -36,6 +39,8 @@ export default function Home() {
       }
     } catch (error) {
       setMessage("File upload failed.");
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -44,6 +49,9 @@ export default function Home() {
       setChatResponse("Please enter a question.");
       return;
     }
+
+    setIsLoading(true);
+    setChatResponse("Processing your question...");
 
     try {
       const response = await fetch("/api/chat", {
@@ -62,6 +70,8 @@ export default function Home() {
       }
     } catch (error) {
       setChatResponse("Failed to fetch response.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -72,15 +82,26 @@ export default function Home() {
         <input type="file" onChange={handleFileChange} className="mb-4 w-full" />
         <button
           onClick={handleUpload}
-          className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600"
+          disabled={isUploading}
+          className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Upload File
+          {isUploading ? "Uploading..." : "Upload File"}
         </button>
         {message && <p className="mt-4 text-sm text-red-500">{message}</p>}
       </div>
 
       <div className="w-full max-w-md mt-8">
         <h1 className="text-2xl font-bold mb-4">Chat Interface</h1>
+        <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+          <h3 className="font-semibold text-sm mb-2">Example questions you can ask:</h3>
+          <ul className="text-xs text-gray-600 space-y-1">
+            <li>• What's my total spending this month?</li>
+            <li>• Show me all transactions above $100</li>
+            <li>• What are my largest expenses?</li>
+            <li>• How much did I spend on groceries?</li>
+            <li>• What's my average transaction amount?</li>
+          </ul>
+        </div>
         <textarea
           value={chatInput}
           onChange={(e) => setChatInput(e.target.value)}
@@ -90,11 +111,17 @@ export default function Home() {
         ></textarea>
         <button
           onClick={handleChatSubmit}
-          className="w-full bg-green-500 text-white py-2 rounded hover:bg-green-600"
+          disabled={isLoading}
+          className="w-full bg-green-500 text-white py-2 rounded hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Submit Question
+          {isLoading ? "Processing..." : "Submit Question"}
         </button>
-        {chatResponse && <p className="mt-4 text-sm text-gray-700">{chatResponse}</p>}
+        {chatResponse && (
+          <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+            <h3 className="font-semibold mb-2">Answer:</h3>
+            <div className="text-sm text-gray-700 whitespace-pre-wrap">{chatResponse}</div>
+          </div>
+        )}
       </div>
     </div>
   );
