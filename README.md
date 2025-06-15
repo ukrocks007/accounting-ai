@@ -44,10 +44,9 @@ pnpm install
 ```
 
 3. Set up environment variables:
-Create a `.env.local` file in the root directory and add your Azure AI credentials:
+Create a `.env.local` file in the root directory and add your GitHub token:
 ```env
-AZURE_AI_ENDPOINT=your_azure_endpoint
-AZURE_AI_KEY=your_azure_key
+GITHUB_TOKEN=your_github_pat_token
 ```
 
 4. Run the development server:
