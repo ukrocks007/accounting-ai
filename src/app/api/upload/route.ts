@@ -85,7 +85,7 @@ async function processFileWithLLM(filepath: string) {
       temperature: 0.8,
       top_p: 0.1,
       max_tokens: 4096,
-      model: "meta/Llama-4-Maverick-17B-128E-Instruct-FP8",
+      model: "meta/Llama-4-Scout-17B-16E-Instruct",
     },
   });
 

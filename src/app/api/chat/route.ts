@@ -244,7 +244,7 @@ export async function POST(request: NextRequest) {
       "https://models.github.ai/inference",
       new AzureKeyCredential(process.env["GITHUB_TOKEN"] || "")
     );
-
+    debugger;
     // Initial conversation with the LLM
     let messages: any[] = [
       {
@@ -305,7 +305,7 @@ export async function POST(request: NextRequest) {
           messages,
           temperature: 0.1,
           max_tokens: 4096,
-          model: "meta/Llama-4-Maverick-17B-128E-Instruct-FP8",
+          model: "meta/Llama-4-Scout-17B-16E-Instruct",
           tools: tools.map(tool => ({
             type: "function",
             function: {
