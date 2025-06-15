@@ -205,7 +205,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
+      <div className="bg-white shadow-sm border-b border-gray-300">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <h1 className="text-2xl font-bold text-gray-800">Accounting AI Assistant</h1>
           <p className="text-gray-600 text-sm">Upload your financial documents and ask questions</p>
@@ -246,7 +246,7 @@ export default function Home() {
         {/* Chat Interface */}
         <div className="bg-white rounded-lg shadow-sm h-[680px] flex flex-col">
           {/* Chat Header */}
-          <div className="p-4 border-b flex justify-between items-center">
+          <div className="p-4 border-b border-gray-300 flex justify-between items-center">
             <h2 className="text-lg font-semibold flex items-center">
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -307,7 +307,7 @@ export default function Home() {
           </div>
 
           {/* Chat Input */}
-          <div className="p-4 border-t">
+          <div className="p-4 border-t border-gray-300">
             <div className="flex gap-2">
               <input
                 ref={inputRef}
@@ -344,7 +344,7 @@ export default function Home() {
       {showReviewModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
-            <div className="p-6 border-b">
+            <div className="p-6 border-b border-gray-300">
               <h2 className="text-xl font-bold text-gray-800">Review Extracted Data</h2>
               <p className="text-gray-600 mt-1">Please review and edit the extracted transactions before saving to database</p>
             </div>
