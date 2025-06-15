@@ -4,8 +4,8 @@ import fs from "fs";
 import sqlite3 from "sqlite3";
 import { open } from "sqlite";
 import { jsonrepair } from "jsonrepair";
-import ModelClient, { isUnexpected } from "@azure-rest/ai-inference";
-import { AzureKeyCredential } from "@azure/core-auth";
+import { isUnexpected } from "@azure-rest/ai-inference";
+import { createModelClient, getModelRequestParams } from "../../../utils/modelUtils";
 
 async function saveToDatabase(
   rows: Array<{
@@ -49,11 +49,10 @@ async function saveToDatabase(
 
 async function processFileWithLLM(filepath: string) {
   const fileBuffer = fs.readFileSync(filepath);
-
-  const client = ModelClient(
-    "https://models.github.ai/inference",
-    new AzureKeyCredential(process.env["GITHUB_TOKEN"] || "")
-  );
+  
+  // Get model client and parameters for upload processing
+  const client = createModelClient('upload');
+  const modelParams = getModelRequestParams('upload');
 
   const response = await client.path("/chat/completions").post({
     body: {
@@ -82,10 +81,7 @@ async function processFileWithLLM(filepath: string) {
           content: fileBuffer.toString("base64"),
         },
       ],
-      temperature: 0.8,
-      top_p: 0.1,
-      max_tokens: 4096,
-      model: "meta/Llama-4-Scout-17B-16E-Instruct",
+      ...modelParams,
     },
   });
 

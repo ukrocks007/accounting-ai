@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import sqlite3 from "sqlite3";
 import { open } from "sqlite";
-import ModelClient, { isUnexpected } from "@azure-rest/ai-inference";
-import { AzureKeyCredential } from "@azure/core-auth";
+import { isUnexpected } from "@azure-rest/ai-inference";
 import fs from "fs";
 import path from "path";
+import { createModelClient, getModelRequestParams } from "../../../utils/modelUtils";
 
 // Tool interface for the LLM
 interface Tool {
@@ -240,10 +240,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No query provided." }, { status: 400 });
     }
 
-    const client = ModelClient(
-      "https://models.github.ai/inference",
-      new AzureKeyCredential(process.env["GITHUB_TOKEN"] || "")
-    );
+    // Get model client and parameters for chat
+    const client = createModelClient('chat');
+    const modelParams = getModelRequestParams('chat');
     debugger;
     // Initial conversation with the LLM
     let messages: any[] = [
@@ -303,9 +302,7 @@ export async function POST(request: NextRequest) {
       const response = await client.path("/chat/completions").post({
         body: {
           messages,
-          temperature: 0.1,
-          max_tokens: 4096,
-          model: "meta/Llama-4-Scout-17B-16E-Instruct",
+          ...modelParams,
           tools: tools.map(tool => ({
             type: "function",
             function: {
@@ -333,7 +330,7 @@ export async function POST(request: NextRequest) {
 
       // Check if the assistant wants to call a tool
       if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
-        console.log('Processing tool calls:', assistantMessage.tool_calls.map(tc => tc.function.name));
+        console.log('Processing tool calls:', assistantMessage.tool_calls.map((tc: any) => tc.function.name));
         
         // Execute all tool calls
         for (const toolCall of assistantMessage.tool_calls) {
