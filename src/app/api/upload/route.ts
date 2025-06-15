@@ -1,51 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import path from "path";
 import fs from "fs";
-import sqlite3 from "sqlite3";
-import { open } from "sqlite";
 import { jsonrepair } from "jsonrepair";
 import { isUnexpected } from "@azure-rest/ai-inference";
 import { createModelClient, getModelRequestParams } from "../../../utils/modelUtils";
-
-async function saveToDatabase(
-  rows: Array<{
-    date: string;
-    description: string;
-    amount: number;
-    type: "credit" | "debit";
-  }>
-) {
-  const db = await open({
-    filename: "./database.sqlite",
-    driver: sqlite3.Database,
-  });
-
-  // Create main statements table if it doesn't exist
-  await db.exec(`CREATE TABLE IF NOT EXISTS statements (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    date TEXT,
-    description TEXT,
-    amount REAL,
-    type TEXT
-  )`);
-
-  // Clear existing data (since we're not tracking files anymore)
-  await db.run('DELETE FROM statements');
-
-  const insertStatement = `INSERT INTO statements (date, description, amount, type) VALUES (?, ?, ?, ?)`;
-
-  for (const row of rows) {
-    await db.run(
-      insertStatement,
-      row.date,
-      row.description,
-      row.amount,
-      row.type
-    );
-  }
-
-  await db.close();
-}
 
 async function processFileWithLLM(filepath: string) {
   const fileBuffer = fs.readFileSync(filepath);
@@ -135,16 +93,17 @@ export async function POST(request: NextRequest) {
     fs.writeFileSync(filepath, buffer);
 
     const rows = await processFileWithLLM(filepath);
-    await saveToDatabase(rows);
 
+    // Return extracted data for review instead of saving immediately
     return NextResponse.json({
-      message: "File processed and data saved successfully.",
+      message: "File processed successfully. Please review the extracted data.",
       file: {
         filename,
         originalname: file.name,
         size: file.size,
         path: filepath,
       },
+      extractedData: rows,
     });
   } catch (error: unknown) {
     const errorMessage =
