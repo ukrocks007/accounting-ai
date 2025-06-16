@@ -208,7 +208,7 @@ export default function Home() {
       <div className="bg-white shadow-sm border-b border-gray-300">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <h1 className="text-2xl font-bold text-gray-800">Accounting AI Assistant</h1>
-          <p className="text-gray-600 text-sm">Upload your financial documents and ask questions</p>
+          <p className="text-gray-600 text-sm">Upload your financial documents (PDF, Excel, CSV) and ask questions</p>
         </div>
       </div>
 
@@ -219,7 +219,7 @@ export default function Home() {
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
             </svg>
-            Upload Bank Statement
+            Upload Financial Statement
           </h2>
           <div className="flex flex-col sm:flex-row gap-4">
             <input 

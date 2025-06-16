@@ -243,7 +243,6 @@ export async function POST(request: NextRequest) {
     // Get model client and parameters for chat
     const client = createModelClient('chat');
     const modelParams = getModelRequestParams('chat');
-    debugger;
     // Initial conversation with the LLM
     let messages: any[] = [
       {

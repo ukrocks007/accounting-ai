@@ -4,39 +4,135 @@ import fs from "fs";
 import { jsonrepair } from "jsonrepair";
 import { isUnexpected } from "@azure-rest/ai-inference";
 import { createModelClient, getModelRequestParams } from "../../../utils/modelUtils";
+import * as XLSX from 'xlsx';
+/* load 'fs' for readFile and writeFile support */
+XLSX.set_fs(fs);
+import * as Papa from 'papaparse';
+import pdfParse from 'pdf-parse';
 
-async function processFileWithLLM(filepath: string) {
-  const fileBuffer = fs.readFileSync(filepath);
+interface ProcessedFileData {
+  text?: string;
+  csvData?: any[];
+  error?: string;
+}
+
+async function processFileByType(filepath: string, fileExtension: string): Promise<ProcessedFileData> {
+  try {
+    switch (fileExtension.toLowerCase()) {
+      case '.pdf':
+        return await processPDFFile(filepath);
+      case '.csv':
+        return await processCSVFile(filepath);
+      case '.xlsx':
+      case '.xls':
+        return await processExcelFile(filepath);
+      default:
+        return { error: `Unsupported file type: ${fileExtension}` };
+    }
+  } catch (error) {
+    return { error: `Error processing ${fileExtension} file: ${error instanceof Error ? error.message : 'Unknown error'}` };
+  }
+}
+
+async function processPDFFile(filepath: string): Promise<ProcessedFileData> {
+  try {
+    const fileBuffer = fs.readFileSync(filepath);
+    const pdfData = await pdfParse(fileBuffer);
+    return { text: pdfData.text };
+  } catch (error) {
+    console.error('PDF processing error:', error);
+    return { error: `Failed to process PDF: ${error instanceof Error ? error.message : 'Unknown error'}` };
+  }
+}
+
+async function processCSVFile(filepath: string): Promise<ProcessedFileData> {
+  const fileContent = fs.readFileSync(filepath, 'utf8');
+  return new Promise((resolve) => {
+    Papa.parse(fileContent, {
+      header: true,
+      complete: (results) => {
+        resolve({ csvData: results.data });
+      },
+      error: (error: any) => {
+        resolve({ error: `CSV parsing error: ${error.message}` });
+      }
+    });
+  });
+}
+
+async function processExcelFile(filepath: string): Promise<ProcessedFileData> {
+  const workbook = XLSX.readFile(filepath);
+  const sheetName = workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[sheetName];
+  const csvData = XLSX.utils.sheet_to_json(worksheet);
+  return { csvData };
+}
+
+async function processFileWithLLM(filepath: string, fileExtension: string) {
+  // First, process the file based on its type to extract structured data
+  const processedData = await processFileByType(filepath, fileExtension);
   
+  if (processedData.error) {
+    throw new Error(processedData.error);
+  }
+
   // Get model client and parameters for upload processing
   const client = createModelClient('upload');
   const modelParams = getModelRequestParams('upload');
+
+  let contentToProcess = '';
+  
+  if (processedData.csvData) {
+    // For structured data (CSV, Excel), convert to a readable format for the LLM
+    contentToProcess = JSON.stringify(processedData.csvData, null, 2);
+  } else if (processedData.text) {
+    // For PDF, use the extracted text
+    contentToProcess = processedData.text;
+  } else {
+    // Fallback: read file as base64 (for backwards compatibility)
+    const fileBuffer = fs.readFileSync(filepath);
+    contentToProcess = fileBuffer.toString("base64");
+  }
 
   const response = await client.path("/chat/completions").post({
     body: {
       messages: [
         {
           role: "system",
-          content: `You are a helpful assistant. Process the uploaded Excel file and extract rows of statements. Make sure you only return the rows in JSON format and nothing else.
-          The file is an Excel file containing financial statements. In case you are not able to give a response, return an empty array. In case of overflow, return as many rows as you can but
-          make sure to return a valid JSON format.
-          The return JSON looks like this:
-          {
-            "overflow": true | false,
-            rows: [
-                {
-                "date": "2023-01-01",
-                "description": "Sample transaction",
-                "amount": 100.0,
-                "type": "credit" | "debit"
-                }
-            ]
-        }
-`,
+          content: `You are a helpful assistant. Process the uploaded financial statement file and extract rows of transactions. The file can be in various formats (CSV, Excel, PDF).
+
+For structured data (CSV/Excel), you'll receive JSON data. For PDF, you'll receive extracted text. For other formats, you'll receive base64 encoded data.
+
+Make sure you only return the transactions in JSON format and nothing else. Look for columns that represent:
+- Date (various formats like MM/DD/YYYY, DD/MM/YYYY, YYYY-MM-DD)
+- Description/Transaction details/Memo
+- Amount (positive or negative numbers, or separate debit/credit columns)
+- Transaction type (debit/credit, or infer from amount sign)
+
+In case you are not able to give a response, return an empty array. In case of overflow, return as many rows as you can but make sure to return a valid JSON format.
+
+The return JSON looks like this:
+{
+  "overflow": true | false,
+  "rows": [
+    {
+      "date": "2023-01-01",
+      "description": "Sample transaction",
+      "amount": 100.0,
+      "type": "credit" | "debit"
+    }
+  ]
+}
+
+Important: 
+- Convert all dates to YYYY-MM-DD format
+- Ensure amounts are positive numbers
+- Set type as "debit" for expenses/withdrawals and "credit" for income/deposits
+- Clean up descriptions to remove extra spaces and characters`,
         },
         {
           role: "user",
-          content: fileBuffer.toString("base64"),
+          content: contentToProcess,
         },
       ],
       ...modelParams,
@@ -58,13 +154,14 @@ async function processFileWithLLM(filepath: string) {
       if (
         lastRow.date &&
         lastRow.description &&
-        (lastRow.credit || lastRow.debit)
+        typeof lastRow.amount === 'number'
       ) {
         return parsedResult.rows;
       } else {
         return parsedResult.rows.slice(0, -1); // Remove the last row if it doesn't have valid data
       }
     }
+    return [];
   } catch (error) {
     throw new Error("Failed to parse or repair JSON response");
   }
@@ -72,6 +169,7 @@ async function processFileWithLLM(filepath: string) {
 
 export async function POST(request: NextRequest) {
   try {
+    debugger;
     const formData = await request.formData();
     const file = formData.get("file") as File;
 
@@ -86,13 +184,14 @@ export async function POST(request: NextRequest) {
 
     const filename = `${Date.now()}-${file.name}`;
     const filepath = path.join(uploadDir, filename);
+    const fileExtension = path.extname(file.name);
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
     fs.writeFileSync(filepath, buffer);
 
-    const rows = await processFileWithLLM(filepath);
+    const rows = await processFileWithLLM(filepath, fileExtension);
 
     // Return extracted data for review instead of saving immediately
     return NextResponse.json({
