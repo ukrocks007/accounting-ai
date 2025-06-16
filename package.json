@@ -7,17 +7,22 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "postinstall": "node scripts/patch-pdf-parse.js"
+    "postinstall": "node scripts/patch-pdf-parse.js",
+    "setup-pinecone": "npx ts-node --project tsconfig-scripts.json setup-pinecone.ts",
+    "test-rag": "npx ts-node --project tsconfig-scripts.json test-rag.ts"
   },
   "dependencies": {
     "@azure-rest/ai-inference": "latest",
     "@azure/core-auth": "latest",
     "@azure/core-sse": "latest",
+    "@pinecone-database/pinecone": "^6.1.1",
     "@types/sqlite3": "^5.1.0",
     "csv-parser": "^3.2.0",
+    "dotenv": "^16.5.0",
     "jsonrepair": "^3.12.0",
     "multer": "^2.0.1",
     "next": "15.3.3",
+    "openai": "^5.3.0",
     "papaparse": "^5.5.3",
     "pdf-parse": "^1.1.1",
     "pdfjs-dist": "^5.3.31",
@@ -40,6 +45,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.3.3",
     "tailwindcss": "^4",
+    "ts-node": "^10.9.1",
     "typescript": "^5"
   }
 }

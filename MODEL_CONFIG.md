@@ -36,7 +36,7 @@ By default, both APIs use:
 
 ### Environment Variables
 
-Create a `.env.local` file with your API keys:
+Create a `.env` file with your API keys:
 
 ```env
 # GitHub Models (Default)
@@ -117,7 +117,7 @@ To add a new model configuration:
 
 1. Update `MODEL_CONFIGS.ALTERNATIVE_MODELS` in `src/constants/models.ts`
 2. Add the corresponding environment variable handling
-3. Include the API key in your `.env.local` file
+3. Include the API key in your `.env` file
 
 Example:
 

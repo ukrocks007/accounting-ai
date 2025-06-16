@@ -30,6 +30,15 @@ export const MODEL_CONFIGS = {
     credential: process.env["GITHUB_TOKEN"] || ""
   } as ModelConfig,
 
+  // Configuration for embedding generation
+  EMBEDDING_PROCESSOR: {
+    model: process.env.EMBEDDING_MODEL || "text-embedding-3-small",
+    temperature: 0,
+    max_tokens: 8191, // Max tokens for embeddings
+    endpoint: process.env.EMBEDDING_ENDPOINT || "https://models.inference.ai.azure.com",
+    credential: process.env["GITHUB_TOKEN"] || ""
+  } as ModelConfig,
+
   // Alternative model configurations (can be switched by changing the active config)
   ALTERNATIVE_MODELS: {
     GPT_4: {
@@ -59,7 +68,7 @@ export const MODEL_CONFIGS = {
 } as const;
 
 // Helper function to get model config by name
-export function getModelConfig(configName: 'UPLOAD_PROCESSOR' | 'CHAT_ASSISTANT'): ModelConfig {
+export function getModelConfig(configName: 'UPLOAD_PROCESSOR' | 'CHAT_ASSISTANT' | 'EMBEDDING_PROCESSOR'): ModelConfig {
   return MODEL_CONFIGS[configName];
 }
 
@@ -78,14 +87,21 @@ export function createModelClientConfig(config: ModelConfig) {
 }
 
 // Environment-based model selection
-export function getActiveModelConfig(apiType: 'upload' | 'chat'): ModelConfig {
+export function getActiveModelConfig(apiType: 'upload' | 'chat' | 'embedding'): ModelConfig {
   const envModelOverride = process.env[`${apiType.toUpperCase()}_MODEL`];
   
   if (envModelOverride && envModelOverride in MODEL_CONFIGS.ALTERNATIVE_MODELS) {
     return MODEL_CONFIGS.ALTERNATIVE_MODELS[envModelOverride as keyof typeof MODEL_CONFIGS.ALTERNATIVE_MODELS];
   }
   
-  return apiType === 'upload' 
-    ? MODEL_CONFIGS.UPLOAD_PROCESSOR 
-    : MODEL_CONFIGS.CHAT_ASSISTANT;
+  switch (apiType) {
+    case 'upload':
+      return MODEL_CONFIGS.UPLOAD_PROCESSOR;
+    case 'chat':
+      return MODEL_CONFIGS.CHAT_ASSISTANT;
+    case 'embedding':
+      return MODEL_CONFIGS.EMBEDDING_PROCESSOR;
+    default:
+      return MODEL_CONFIGS.CHAT_ASSISTANT;
+  }
 }

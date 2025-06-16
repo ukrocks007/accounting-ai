@@ -5,6 +5,7 @@ import { isUnexpected } from "@azure-rest/ai-inference";
 import fs from "fs";
 import path from "path";
 import { createModelClient, getModelRequestParams } from "../../../utils/modelUtils";
+import { getRelevantContext } from "../../../utils/embeddings";
 
 // Tool interface for the LLM
 interface Tool {
@@ -145,6 +146,20 @@ const tools: Tool[] = [
       },
       required: ["query"]
     }
+  },
+  {
+    name: "search_document_content",
+    description: "Search through uploaded document content using RAG (Retrieval-Augmented Generation) to find relevant information from large documents that have been processed",
+    parameters: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "The search query to find relevant content from uploaded documents"
+        }
+      },
+      required: ["query"]
+    }
   }
 ];
 
@@ -223,6 +238,29 @@ async function executeToolCall(toolName: string, parameters: any) {
         console.log('SQL query validation completed');
         return validation;
       
+      case "search_document_content":
+        if (!parameters.query) {
+          throw new Error('Search query parameter is required');
+        }
+        try {
+          const relevantContext = await getRelevantContext(parameters.query, 3);
+          console.log(`Document search completed for query: "${parameters.query}"`);
+          return {
+            query: parameters.query,
+            found_content: relevantContext ? true : false,
+            content: relevantContext || "No relevant content found in uploaded documents.",
+            message: relevantContext ? "Found relevant content from uploaded documents" : "No relevant content found"
+          };
+        } catch (error) {
+          console.error('RAG search error:', error);
+          return {
+            query: parameters.query,
+            found_content: false,
+            content: "Error occurred while searching document content. RAG system may not be properly configured.",
+            error: error instanceof Error ? error.message : "Unknown error"
+          };
+        }
+      
       default:
         throw new Error(`Unknown tool: ${toolName}`);
     }
@@ -247,7 +285,7 @@ export async function POST(request: NextRequest) {
     let messages: any[] = [
       {
         role: "system",
-        content: `You are a helpful financial data analyst that can analyze bank statements and financial transactions stored in a SQLite database. 
+        content: `You are a helpful financial data analyst that can analyze bank statements and financial transactions stored in a SQLite database, and search through uploaded document content using RAG. 
 
         IMPORTANT: You have access to several tools that you MUST use to gather information before answering questions:
 
@@ -255,17 +293,25 @@ export async function POST(request: NextRequest) {
         2. get_data_summary - Get high-level summary of the financial data
         3. execute_sql_query - Run SELECT queries to get specific data
         4. validate_sql_query - Validate SQL queries before execution
+        5. search_document_content - Search through uploaded document content using RAG
 
         CRITICAL WORKFLOW for answering questions:
-        1. ALWAYS start by calling get_database_schema to understand table structure and column names
-        2. If helpful, call get_data_summary for overview statistics
-        3. Based on the user's question, generate appropriate SQL SELECT queries
-        4. MUST call execute_sql_query tool with your generated SQL to get actual data
-        5. Analyze the returned results and provide a clear, natural language response
+        1. Determine if the question is about:
+           - Transaction data (use database tools)
+           - Document content/details (use RAG search)
+           - Both (combine approaches)
+        2. For transaction analysis: Start with get_database_schema, then use SQL queries
+        3. For document content: Use search_document_content with relevant search terms
+        4. Always use tools to get actual data - never make assumptions
 
         DATABASE STRUCTURE:
         - statements table: Contains transaction data (id, date, description, amount, type)
         - The table contains all uploaded financial transaction data
+
+        RAG DOCUMENT SEARCH:
+        - Use search_document_content to find specific information from uploaded documents
+        - Especially useful for large PDFs that have been processed with RAG
+        - Search for terms, conditions, fees, policies, or any specific content
 
         SQL QUERY GUIDELINES:
         - Only SELECT queries are allowed (no INSERT, UPDATE, DELETE, DROP, etc.)
@@ -279,6 +325,12 @@ export async function POST(request: NextRequest) {
         - Transaction count by type: "SELECT type, COUNT(*) FROM statements GROUP BY type"
         - Transactions above amount: "SELECT * FROM statements WHERE amount > 100 ORDER BY amount DESC"
         - Search descriptions: "SELECT * FROM statements WHERE description LIKE '%grocery%'"
+
+        EXAMPLE DOCUMENT SEARCHES:
+        - "account fees and charges"
+        - "interest rate information"
+        - "terms and conditions"
+        - "overdraft policies"
 
         Remember: 
         - You MUST use the execute_sql_query tool to run queries and get actual data

@@ -8,6 +8,7 @@ An intelligent accounting assistant powered by AI that helps you analyze financi
 - 💬 **AI Chat Interface**: Ask questions about your financial data in natural language
 - 🔍 **Smart Data Analysis**: Get insights, trends, and summaries of your transactions
 - 📈 **Transaction Management**: Automatically parse and store transaction data
+- 🧠 **RAG (Retrieval-Augmented Generation)**: Intelligent search through large document content
 - 🛡️ **Secure Database**: SQLite database with read-only query protection
 - 🎨 **Modern UI**: Clean, responsive interface built with Tailwind CSS
 
@@ -15,8 +16,9 @@ An intelligent accounting assistant powered by AI that helps you analyze financi
 
 - **Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS
 - **Backend**: Next.js API Routes, SQLite Database
-- **AI Integration**: Azure AI Inference API
-- **File Processing**: XLSX for Excel files, Multer for file uploads
+- **AI Integration**: Azure AI Inference API, OpenAI Embeddings
+- **Vector Database**: Pinecone for RAG functionality
+- **File Processing**: XLSX for Excel files, PDF parsing
 - **Database**: SQLite3 with sqlite package
 
 ## Getting Started
@@ -44,10 +46,22 @@ pnpm install
 ```
 
 3. Set up environment variables:
-Create a `.env.local` file in the root directory and add your GitHub token:
+Create a `.env` file in the root directory:
+
+**Basic Setup (Required):**
 ```env
 GITHUB_TOKEN=your_github_pat_token
 ```
+
+**RAG Setup (Optional - for large document processing):**
+```env
+# For RAG functionality with large documents
+PINECONE_API_KEY=your_pinecone_api_key
+PINECONE_INDEX_NAME=accounting-documents
+OPENAI_API_KEY=your_openai_api_key
+```
+
+> **Note**: RAG features require additional setup. See [RAG_SETUP.md](./RAG_SETUP.md) for detailed instructions.
 
 4. Run the development server:
 ```bash
@@ -69,15 +83,28 @@ bun dev
 1. Click on the file upload area or drag and drop your files
 2. Supported formats: `.xls`, `.xlsx`, `.csv`, `.pdf`
 3. Click "Upload" to process the file
-4. Your transaction data will be automatically parsed and stored
+4. **Large Documents**: Files with text over 4096 characters are automatically processed with RAG
+5. Your transaction data will be automatically parsed and stored
 
 ### Chatting with Your Data
 
-Once you've uploaded files, you can:
-- Ask questions like "What's my total spending this month?"
-- Request analysis: "Show me my largest expenses"
-- Get summaries: "Summarize my account activity"
-- Query specific data: "Find all transactions over $500"
+The AI assistant can answer two types of questions:
+
+**Transaction Data Questions:**
+- "What's my total spending this month?"
+- "Show me my largest expenses"
+- "Find all transactions over $500"
+- "What's my average transaction amount?"
+
+**Document Content Questions (RAG-powered):**
+- "What are the account fees mentioned in my statement?"
+- "Find information about overdraft policies"
+- "What interest rates are specified?"
+- "Search for terms and conditions"
+
+**Combined Questions:**
+- "Based on the fee structure, how much did I pay in fees?"
+- "Compare my spending to the limits mentioned in the document"
 
 ## API Endpoints
 

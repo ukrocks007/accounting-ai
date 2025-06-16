@@ -1,0 +1,12 @@
+{
+  "ts-node": {
+    "compilerOptions": {
+      "module": "CommonJS",
+      "target": "ES2017",
+      "esModuleInterop": true,
+      "allowSyntheticDefaultImports": true,
+      "strict": false,
+      "skipLibCheck": true
+    }
+  }
+}

@@ -4,6 +4,7 @@ import fs from "fs";
 import { jsonrepair } from "jsonrepair";
 import { isUnexpected } from "@azure-rest/ai-inference";
 import { createModelClient, getModelRequestParams } from "../../../utils/modelUtils";
+import { processDocumentForRAG } from "../../../utils/embeddings";
 import * as XLSX from 'xlsx';
 /* load 'fs' for readFile and writeFile support */
 XLSX.set_fs(fs);
@@ -68,7 +69,7 @@ async function processExcelFile(filepath: string): Promise<ProcessedFileData> {
   return { csvData };
 }
 
-async function processFileWithLLM(filepath: string, fileExtension: string) {
+async function processFileWithLLM(filepath: string, fileExtension: string, filename: string) {
   // First, process the file based on its type to extract structured data
   const processedData = await processFileByType(filepath, fileExtension);
   
@@ -81,6 +82,7 @@ async function processFileWithLLM(filepath: string, fileExtension: string) {
   const modelParams = getModelRequestParams('upload');
 
   let contentToProcess = '';
+  let ragProcessed = false;
   
   if (processedData.csvData) {
     // For structured data (CSV, Excel), convert to a readable format for the LLM
@@ -88,6 +90,28 @@ async function processFileWithLLM(filepath: string, fileExtension: string) {
   } else if (processedData.text) {
     // For PDF, use the extracted text
     contentToProcess = processedData.text;
+    
+    // Check if text is large and should be processed with RAG
+    if (contentToProcess.length > 4096) {
+      try {
+        const ragResult = await processDocumentForRAG(
+          contentToProcess,
+          filename,
+          fileExtension
+        );
+        
+        if (ragResult.stored) {
+          console.log(`Document ${filename} stored in RAG with ${ragResult.chunkCount} chunks`);
+          ragProcessed = true;
+          
+          // For large documents, truncate the content sent to LLM but still process what we can
+          contentToProcess = contentToProcess.substring(0, 4000) + "\n\n[Document is large and has been stored for RAG retrieval. Processing first 4000 characters for immediate extraction.]";
+        }
+      } catch (error) {
+        console.error('RAG processing failed, continuing with truncated content:', error);
+        contentToProcess = contentToProcess.substring(0, 4000) + "\n\n[Document truncated due to size]";
+      }
+    }
   } else {
     // Fallback: read file as base64 (for backwards compatibility)
     const fileBuffer = fs.readFileSync(filepath);
@@ -156,12 +180,12 @@ Important:
         lastRow.description &&
         typeof lastRow.amount === 'number'
       ) {
-        return parsedResult.rows;
+        return { rows: parsedResult.rows, ragProcessed };
       } else {
-        return parsedResult.rows.slice(0, -1); // Remove the last row if it doesn't have valid data
+        return { rows: parsedResult.rows.slice(0, -1), ragProcessed }; // Remove the last row if it doesn't have valid data
       }
     }
-    return [];
+    return { rows: [], ragProcessed };
   } catch (error) {
     throw new Error("Failed to parse or repair JSON response");
   }
@@ -191,11 +215,14 @@ export async function POST(request: NextRequest) {
 
     fs.writeFileSync(filepath, buffer);
 
-    const rows = await processFileWithLLM(filepath, fileExtension);
+    const result = await processFileWithLLM(filepath, fileExtension, filename);
+    const { rows, ragProcessed } = result;
 
     // Return extracted data for review instead of saving immediately
     return NextResponse.json({
-      message: "File processed successfully. Please review the extracted data.",
+      message: ragProcessed 
+        ? "File processed successfully. Large document has been stored for RAG retrieval. Please review the extracted data." 
+        : "File processed successfully. Please review the extracted data.",
       file: {
         filename,
         originalname: file.name,
@@ -203,6 +230,7 @@ export async function POST(request: NextRequest) {
         path: filepath,
       },
       extractedData: rows,
+      ragProcessed,
     });
   } catch (error: unknown) {
     const errorMessage =

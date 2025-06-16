@@ -7,7 +7,7 @@ import { AzureKeyCredential } from "@azure/core-auth";
 /**
  * Create a configured model client for a specific API type
  */
-export function createModelClient(apiType: 'upload' | 'chat') {
+export function createModelClient(apiType: 'upload' | 'chat' | 'embedding') {
   const config = getActiveModelConfig(apiType);
   return ModelClient(config.endpoint, new AzureKeyCredential(config.credential));
 }
@@ -15,7 +15,7 @@ export function createModelClient(apiType: 'upload' | 'chat') {
 /**
  * Get model request parameters for a specific API type
  */
-export function getModelRequestParams(apiType: 'upload' | 'chat') {
+export function getModelRequestParams(apiType: 'upload' | 'chat' | 'embedding') {
   const config = getActiveModelConfig(apiType);
   return {
     model: config.model,
@@ -32,7 +32,8 @@ export function listAvailableModels() {
   return {
     active: {
       upload: getActiveModelConfig('upload'),
-      chat: getActiveModelConfig('chat')
+      chat: getActiveModelConfig('chat'),
+      embedding: getActiveModelConfig('embedding')
     },
     available: Object.keys(MODEL_CONFIGS.ALTERNATIVE_MODELS)
   };
@@ -54,7 +55,7 @@ export function validateModelConfig(config: ModelConfig): boolean {
 /**
  * Get model info for logging/debugging
  */
-export function getModelInfo(apiType: 'upload' | 'chat') {
+export function getModelInfo(apiType: 'upload' | 'chat' | 'embedding') {
   const config = getActiveModelConfig(apiType);
   return {
     apiType,
