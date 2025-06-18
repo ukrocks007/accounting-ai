@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 
 interface ChatMessage {
   id: string;
@@ -59,7 +60,7 @@ export default function Home() {
       const result = await response.json();
       if (response.ok) {
         let successMessage = `File processed successfully: ${result.file.filename}`;
-        
+
         if (result.ragProcessed && result.backgroundProcessing?.enabled) {
           successMessage += `\n\n📋 Large document detected! Background processing has been enabled:
 • Document stored for advanced RAG retrieval
@@ -67,7 +68,7 @@ export default function Home() {
 • Check processing status at /admin/background-processing
 • Background processor runs every 5 minutes`;
         }
-        
+
         setMessage(successMessage);
         setExtractedData(result.extractedData || []);
         setShowReviewModal(true);
@@ -170,29 +171,29 @@ export default function Home() {
       });
 
       const result = await response.json();
-      
+
       // Replace loading message with actual response
-      setChatHistory(prev => 
-        prev.map(msg => 
+      setChatHistory(prev =>
+        prev.map(msg =>
           msg.id === loadingMessage.id
             ? {
-                ...msg,
-                content: response.ok ? result.answer : `Error: ${result.error}`,
-                timestamp: new Date(),
-              }
+              ...msg,
+              content: response.ok ? result.answer : `Error: ${result.error}`,
+              timestamp: new Date(),
+            }
             : msg
         )
       );
     } catch (error) {
       // Replace loading message with error
-      setChatHistory(prev => 
-        prev.map(msg => 
+      setChatHistory(prev =>
+        prev.map(msg =>
           msg.id === loadingMessage.id
             ? {
-                ...msg,
-                content: "Failed to fetch response. Please try again.",
-                timestamp: new Date(),
-              }
+              ...msg,
+              content: "Failed to fetch response. Please try again.",
+              timestamp: new Date(),
+            }
             : msg
         )
       );
@@ -216,9 +217,27 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Header */}
       <div className="bg-white shadow-sm border-b border-gray-300">
-        <div className="max-w-4xl mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold text-gray-800">Accounting AI Assistant</h1>
-          <p className="text-gray-600 text-sm">Upload your financial documents (PDF, Excel, CSV) and ask questions</p>
+        <div className="max-w-4xl mx-auto px-4 py-2">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">Accounting AI Assistant</h1>
+              <p className="text-gray-600 text-sm">Upload your financial documents (PDF, Excel, CSV) and ask questions</p>
+            </div>
+            <nav className="flex gap-4">
+              <Link
+                href="/statements"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+              >
+                Manage Statements
+              </Link>
+              <Link
+                href="/admin/background-processing"
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
+              >
+                Admin Panel
+              </Link>
+            </nav>
+          </div>
         </div>
       </div>
 
@@ -232,10 +251,10 @@ export default function Home() {
             Upload Financial Statement
           </h2>
           <div className="flex flex-col sm:flex-row gap-4">
-            <input 
-              type="file" 
-              onChange={handleFileChange} 
-              className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+            <input
+              type="file"
+              onChange={handleFileChange}
+              className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               accept=".csv,.xlsx,.xls,.pdf"
             />
             <button
@@ -298,15 +317,13 @@ export default function Home() {
             ) : (
               chatHistory.map((msg) => (
                 <div key={msg.id} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                    msg.type === 'user' 
-                      ? 'bg-blue-600 text-white' 
+                  <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${msg.type === 'user'
+                      ? 'bg-blue-600 text-white'
                       : 'bg-gray-100 text-gray-800'
-                  }`}>
-                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                    <p className={`text-xs mt-1 ${
-                      msg.type === 'user' ? 'text-blue-100' : 'text-gray-700'
                     }`}>
+                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    <p className={`text-xs mt-1 ${msg.type === 'user' ? 'text-blue-100' : 'text-gray-700'
+                      }`}>
                       {msg.timestamp.toLocaleTimeString()}
                     </p>
                   </div>
@@ -358,7 +375,7 @@ export default function Home() {
               <h2 className="text-xl font-bold text-gray-800">Review Extracted Data</h2>
               <p className="text-gray-600 mt-1">Please review and edit the extracted transactions before saving to database</p>
             </div>
-            
+
             <div className="p-6 overflow-y-auto max-h-[60vh]">
               {extractedData.length === 0 ? (
                 <div className="text-center py-8">
@@ -433,9 +450,8 @@ export default function Home() {
                                 <option value="debit">Debit</option>
                               </select>
                             ) : (
-                              <span onClick={() => setEditingRow(index)} className={`cursor-pointer hover:bg-gray-100 px-2 py-1 rounded capitalize ${
-                                row.type === 'credit' ? 'text-green-600' : 'text-red-600'
-                              }`}>
+                              <span onClick={() => setEditingRow(index)} className={`cursor-pointer hover:bg-gray-100 px-2 py-1 rounded capitalize ${row.type === 'credit' ? 'text-green-600' : 'text-red-600'
+                                }`}>
                                 {row.type}
                               </span>
                             )}
@@ -471,7 +487,7 @@ export default function Home() {
                   </table>
                 </div>
               )}
-              
+
               <div className="mt-4">
                 <button
                   onClick={handleAddRow}
@@ -481,7 +497,7 @@ export default function Home() {
                 </button>
               </div>
             </div>
-            
+
             <div className="p-6 border-t flex justify-end gap-4">
               <button
                 onClick={() => {
@@ -505,11 +521,11 @@ export default function Home() {
           </div>
         </div>
       )}
-      
+
       {/* Admin Footer */}
-      <div className="mt-8 pt-4 border-t border-gray-200 text-center">
-        <a 
-          href="/admin/background-processing" 
+      <div className="mt-3 pt-3 border-t border-gray-200 text-center">
+        <a
+          href="/admin/background-processing"
           className="text-sm text-gray-500 hover:text-gray-700 underline"
           target="_blank"
           rel="noopener noreferrer"
