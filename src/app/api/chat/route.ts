@@ -272,7 +272,26 @@ export async function POST(request: NextRequest) {
 
         DATABASE STRUCTURE:
         - statements table: Contains transaction data (id, date, description, amount, type, source, created_at, updated_at)
+        - The 'type' column contains only two values: 'credit' (money received/income) and 'debit' (money spent/expenses)
         - The table contains all uploaded financial transaction data
+
+        FINANCIAL TERMINOLOGY MAPPING - CRITICAL FOR QUERY BUILDING:
+        When users ask for financial terms, map them to the correct database values:
+        
+        INCOME/MONEY RECEIVED queries should use type = 'credit':
+        - "income statements" → SELECT * FROM statements WHERE type = 'credit'
+        - "money received" → SELECT * FROM statements WHERE type = 'credit'  
+        - "deposits" → SELECT * FROM statements WHERE type = 'credit'
+        - "earnings" → SELECT * FROM statements WHERE type = 'credit'
+        - "revenue" → SELECT * FROM statements WHERE type = 'credit'
+        - "credits" → SELECT * FROM statements WHERE type = 'credit'
+        
+        EXPENSE/MONEY SPENT queries should use type = 'debit':
+        - "expenses" → SELECT * FROM statements WHERE type = 'debit'
+        - "spending" → SELECT * FROM statements WHERE type = 'debit'
+        - "withdrawals" → SELECT * FROM statements WHERE type = 'debit'
+        - "payments" → SELECT * FROM statements WHERE type = 'debit'
+        - "debits" → SELECT * FROM statements WHERE type = 'debit'
 
         SQL QUERY GUIDELINES:
         - Only SELECT queries are allowed (no INSERT, UPDATE, DELETE, DROP, etc.)
@@ -280,12 +299,14 @@ export async function POST(request: NextRequest) {
         - Format dates appropriately and handle different date formats
         - Use CASE statements for conditional logic
         - Use LIKE operator for pattern matching in descriptions
+        - NEVER use type = 'income' - there is no such value in the database
 
         Remember: 
         - You MUST use the execute_sql_query tool to run queries and get actual data
         - Once you get results from a tool, analyze them and provide the answer
         - Never make assumptions about data - always query first
-        - Do not repeat the same query unless it failed`,
+        - Do not repeat the same query unless it failed
+        - Always map financial terminology correctly: income = credit, expenses = debit`,
       },
       {
         role: "user",
