@@ -58,7 +58,17 @@ export default function Home() {
 
       const result = await response.json();
       if (response.ok) {
-        setMessage(`File processed successfully: ${result.file.filename}`);
+        let successMessage = `File processed successfully: ${result.file.filename}`;
+        
+        if (result.ragProcessed && result.backgroundProcessing?.enabled) {
+          successMessage += `\n\n📋 Large document detected! Background processing has been enabled:
+• Document stored for advanced RAG retrieval
+• Transactions will be automatically extracted and saved to database
+• Check processing status at /admin/background-processing
+• Background processor runs every 5 minutes`;
+        }
+        
+        setMessage(successMessage);
         setExtractedData(result.extractedData || []);
         setShowReviewModal(true);
       } else {
@@ -495,6 +505,21 @@ export default function Home() {
           </div>
         </div>
       )}
+      
+      {/* Admin Footer */}
+      <div className="mt-8 pt-4 border-t border-gray-200 text-center">
+        <a 
+          href="/admin/background-processing" 
+          className="text-sm text-gray-500 hover:text-gray-700 underline"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          🔧 Background Processing Admin
+        </a>
+        <p className="text-xs text-gray-400 mt-1">
+          Monitor large document processing and automatic transaction extraction
+        </p>
+      </div>
     </div>
   );
 }

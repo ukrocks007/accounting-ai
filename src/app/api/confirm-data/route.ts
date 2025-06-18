@@ -1,45 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import sqlite3 from "sqlite3";
-import { open } from "sqlite";
+import { dbManager, StatementRow } from "../../../lib/dbManager";
 
-interface StatementRow {
+// Interface for legacy compatibility
+interface StatementRowLegacy {
   date: string;
   description: string;
   amount: number;
   type: "credit" | "debit";
 }
 
-async function saveToDatabase(rows: StatementRow[]) {
-  const db = await open({
-    filename: "./database.sqlite",
-    driver: sqlite3.Database,
-  });
+async function saveToDatabase(rows: StatementRowLegacy[]) {
+  const statements: Omit<StatementRow, 'id' | 'created_at'>[] = rows.map(row => ({
+    date: row.date,
+    description: row.description,
+    amount: row.amount,
+    type: row.type,
+    source: 'manual'
+  }));
 
-  // Create main statements table if it doesn't exist
-  await db.exec(`CREATE TABLE IF NOT EXISTS statements (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    date TEXT,
-    description TEXT,
-    amount REAL,
-    type TEXT
-  )`);
-
-  // Clear existing data (since we're not tracking files anymore)
-  await db.run('DELETE FROM statements');
-
-  const insertStatement = `INSERT INTO statements (date, description, amount, type) VALUES (?, ?, ?, ?)`;
-
-  for (const row of rows) {
-    await db.run(
-      insertStatement,
-      row.date,
-      row.description,
-      row.amount,
-      row.type
-    );
-  }
-
-  await db.close();
+  await dbManager.saveStatements(statements, true); // Clear existing data
 }
 
 export async function POST(request: NextRequest) {

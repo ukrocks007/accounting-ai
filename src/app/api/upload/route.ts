@@ -4,7 +4,7 @@ import fs from "fs";
 import { jsonrepair } from "jsonrepair";
 import { isUnexpected } from "@azure-rest/ai-inference";
 import { createModelClient, getModelRequestParams } from "../../../utils/modelUtils";
-import { processDocumentForRAG } from "../../../utils/embeddings";
+import { processDocumentForBackgroundProcessing } from "../../../utils/documentProcessor";
 import * as XLSX from 'xlsx';
 /* load 'fs' for readFile and writeFile support */
 XLSX.set_fs(fs);
@@ -91,24 +91,24 @@ async function processFileWithLLM(filepath: string, fileExtension: string, filen
     // For PDF, use the extracted text
     contentToProcess = processedData.text;
     
-    // Check if text is large and should be processed with RAG
+    // Check if text is large and should be processed with background processing
     if (contentToProcess.length > 4096) {
       try {
-        const ragResult = await processDocumentForRAG(
+        const ragResult = await processDocumentForBackgroundProcessing(
           contentToProcess,
           filename,
           fileExtension
         );
         
         if (ragResult.stored) {
-          console.log(`Document ${filename} stored in RAG with ${ragResult.chunkCount} chunks`);
+          console.log(`Document ${filename} stored for background processing with ${ragResult.chunkCount} chunks`);
           ragProcessed = true;
           
           // For large documents, truncate the content sent to LLM but still process what we can
-          contentToProcess = contentToProcess.substring(0, 4000) + "\n\n[Document is large and has been stored for RAG retrieval. Processing first 4000 characters for immediate extraction.]";
+          contentToProcess = contentToProcess.substring(0, 4000) + "\n\n[Document is large and has been stored for background processing. Processing first 4000 characters for immediate extraction.]";
         }
       } catch (error) {
-        console.error('RAG processing failed, continuing with truncated content:', error);
+        console.error('Background processing setup failed, continuing with truncated content:', error);
         contentToProcess = contentToProcess.substring(0, 4000) + "\n\n[Document truncated due to size]";
       }
     }
@@ -221,7 +221,7 @@ export async function POST(request: NextRequest) {
     // Return extracted data for review instead of saving immediately
     return NextResponse.json({
       message: ragProcessed 
-        ? "File processed successfully. Large document has been stored for RAG retrieval. Please review the extracted data." 
+        ? "File processed successfully. Large document has been stored for RAG retrieval and queued for background processing. Transactions will be automatically extracted and saved to the database. Please review the extracted data from the first 4000 characters." 
         : "File processed successfully. Please review the extracted data.",
       file: {
         filename,
@@ -231,6 +231,14 @@ export async function POST(request: NextRequest) {
       },
       extractedData: rows,
       ragProcessed,
+      backgroundProcessing: ragProcessed ? {
+        enabled: true,
+        message: "Document queued for background transaction extraction",
+        checkStatusEndpoint: "/api/background-process?action=status"
+      } : {
+        enabled: false,
+        message: "Document too small for background processing"
+      }
     });
   } catch (error: unknown) {
     const errorMessage =

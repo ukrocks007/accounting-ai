@@ -10,7 +10,7 @@ let pineconeClient: Pinecone | null = null;
 /**
  * Get or create Pinecone client with caching
  */
-function getPineconeClient(): Pinecone {
+export function getPineconeClient(): Pinecone {
   // Return cached client if it exists
   if (pineconeClient) {
     return pineconeClient;
@@ -271,6 +271,15 @@ export async function processDocumentForRAG(
     
     // Store in Pinecone
     await storeEmbeddings(embeddings);
+    
+    // Add background processing job
+    const { addProcessingJob } = await import('./backgroundProcessor');
+    await addProcessingJob(
+      filename,
+      fileType,
+      new Date().toISOString(),
+      chunks.length
+    );
     
     return { stored: true, chunkCount: chunks.length };
   } catch (error) {
