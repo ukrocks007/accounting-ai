@@ -15,7 +15,7 @@ interface StatementRow {
   date: string;
   description: string;
   amount: number;
-  type: "credit" | "debit";
+  type?: "credit" | "debit";
 }
 
 export default function Home() {
@@ -72,7 +72,12 @@ export default function Home() {
           setShowReviewModal(false);
           setExtractedData([]);
         } else {
-          setExtractedData(result.extractedData || []);
+          // Sanitize the extracted data to ensure all rows have valid type field
+          const sanitizedData = (result.extractedData || []).map((row: any) => ({
+            ...row,
+            type: row.type || 'debit' // Default to 'debit' if type is missing
+          }));
+          setExtractedData(sanitizedData);
           setShowReviewModal(true);
           setBackgroundJob(null);
         }
@@ -119,7 +124,7 @@ export default function Home() {
     if (field === 'amount') {
       updatedData[index][field] = typeof value === 'string' ? parseFloat(value) || 0 : value;
     } else if (field === 'type') {
-      updatedData[index][field] = value as "credit" | "debit";
+      updatedData[index][field] = (value as "credit" | "debit") || "debit";
     } else {
       updatedData[index][field] = value as string;
     }
@@ -451,7 +456,7 @@ export default function Home() {
                           <td className="border border-gray-300 px-4 py-2">
                             {editingRow === index ? (
                               <select
-                                value={row.type}
+                                value={row.type || "debit"}
                                 onChange={(e) => handleEditRow(index, 'type', e.target.value)}
                                 className="w-full p-1 border rounded"
                               >
@@ -459,7 +464,7 @@ export default function Home() {
                                 <option value="debit">Debit</option>
                               </select>
                             ) : (
-                              <span onClick={() => setEditingRow(index)} className={`cursor-pointer hover:bg-gray-100 px-2 py-1 rounded capitalize ${row.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>{row.type}</span>
+                              <span onClick={() => setEditingRow(index)} className={`cursor-pointer hover:bg-gray-100 px-2 py-1 rounded capitalize ${(row.type || 'debit') === 'credit' ? 'text-green-600' : 'text-red-600'}`}>{row.type || 'debit'}</span>
                             )}
                           </td>
                           <td className="border border-gray-300 px-4 py-2">

@@ -126,9 +126,14 @@ Important:
 
     if (parsedResult?.rows && Array.isArray(parsedResult.rows)) {
       // Validate and clean up the extracted transactions
-      return parsedResult.rows.filter((row: any) => 
-        row.date && row.description && typeof row.amount === 'number' && row.type
-      );
+      return parsedResult.rows
+        .filter((row: any) => 
+          row.date && row.description && typeof row.amount === 'number'
+        )
+        .map((row: any) => ({
+          ...row,
+          type: row.type || 'debit' // Default to 'debit' if type is missing
+        }));
     }
     
     return [];

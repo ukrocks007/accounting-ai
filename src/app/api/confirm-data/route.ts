@@ -6,7 +6,7 @@ interface StatementRowLegacy {
   date: string;
   description: string;
   amount: number;
-  type: "credit" | "debit";
+  type?: "credit" | "debit";
 }
 
 async function saveToDatabase(rows: StatementRowLegacy[]) {
@@ -14,7 +14,7 @@ async function saveToDatabase(rows: StatementRowLegacy[]) {
     date: row.date,
     description: row.description,
     amount: row.amount,
-    type: row.type,
+    type: row.type || 'debit',
     source: 'manual'
   }));
 
