@@ -193,7 +193,6 @@ Important:
 
 export async function POST(request: NextRequest) {
   try {
-    debugger;
     const formData = await request.formData();
     const file = formData.get("file") as File;
 
