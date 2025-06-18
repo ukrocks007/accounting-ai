@@ -18,7 +18,7 @@ async function saveToDatabase(rows: StatementRowLegacy[]) {
     source: 'manual'
   }));
 
-  await dbManager.saveStatements(statements, true); // Clear existing data
+  await dbManager.saveStatements(statements); // Clear existing data
 }
 
 export async function POST(request: NextRequest) {
