@@ -47,6 +47,10 @@ export default function StatementsPage() {
     const [showEditModal, setShowEditModal] = useState(false);
     const [editingStatement, setEditingStatement] = useState<StatementRow | null>(null);
 
+    // Selection states
+    const [selectedStatements, setSelectedStatements] = useState<Set<number>>(new Set());
+    const [selectAll, setSelectAll] = useState(false);
+
     // Form state
     const [formData, setFormData] = useState({
         date: '',
@@ -159,6 +163,59 @@ export default function StatementsPage() {
         }
     };
 
+    // Delete selected statements
+    const deleteSelectedStatements = async () => {
+        if (selectedStatements.size === 0) {
+            setError('No statements selected');
+            return;
+        }
+
+        if (!confirm(`Are you sure you want to delete ${selectedStatements.size} selected statements?`)) return;
+
+        try {
+            const response = await fetch('/api/statements', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: Array.from(selectedStatements) }),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                setSelectedStatements(new Set());
+                setSelectAll(false);
+                fetchStatements(pagination.page);
+            } else {
+                setError(data.error || 'Failed to delete selected statements');
+            }
+        } catch (err) {
+            setError('Network error occurred');
+        }
+    };
+
+    // Delete all statements
+    const deleteAllStatements = async () => {
+        if (!confirm('Are you sure you want to delete ALL statements? This action cannot be undone.')) return;
+
+        try {
+            const response = await fetch('/api/statements?deleteAll=true', {
+                method: 'DELETE',
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                setSelectedStatements(new Set());
+                setSelectAll(false);
+                fetchStatements(1);
+            } else {
+                setError(data.error || 'Failed to delete all statements');
+            }
+        } catch (err) {
+            setError('Network error occurred');
+        }
+    };
+
     // Reset form
     const resetForm = () => {
         setFormData({
@@ -199,6 +256,35 @@ export default function StatementsPage() {
         fetchStatements(1, true);
     };
 
+    // Handle individual selection
+    const handleStatementSelect = (id: number, checked: boolean) => {
+        const newSelected = new Set(selectedStatements);
+        if (checked) {
+            newSelected.add(id);
+        } else {
+            newSelected.delete(id);
+        }
+        setSelectedStatements(newSelected);
+        setSelectAll(newSelected.size === statements.length && statements.length > 0);
+    };
+
+    // Handle select all
+    const handleSelectAll = (checked: boolean) => {
+        if (checked) {
+            const allIds = new Set(statements.map(stmt => stmt.id!).filter(id => id !== undefined));
+            setSelectedStatements(allIds);
+        } else {
+            setSelectedStatements(new Set());
+        }
+        setSelectAll(checked);
+    };
+
+    // Reset selections when statements change
+    useEffect(() => {
+        setSelectedStatements(new Set());
+        setSelectAll(false);
+    }, [statements]);
+
     useEffect(() => {
         fetchStatements();
     }, []);
@@ -236,13 +322,36 @@ export default function StatementsPage() {
                     {/* Page Header */}
                     <div className="border-b border-gray-200 px-6 py-4">
                         <div className="flex justify-between items-center">
-                            <h2 className="text-xl font-semibold text-gray-900">All Statements</h2>
-                            <button
-                                onClick={() => setShowCreateModal(true)}
-                                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-                            >
-                                Add Statement
-                            </button>
+                            <div>
+                                <h2 className="text-xl font-semibold text-gray-900">All Statements</h2>
+                                {selectedStatements.size > 0 && (
+                                    <p className="text-sm text-gray-600 mt-1">
+                                        {selectedStatements.size} statement{selectedStatements.size > 1 ? 's' : ''} selected
+                                    </p>
+                                )}
+                            </div>
+                            <div className="flex gap-2">
+                                {selectedStatements.size > 0 && (
+                                    <button
+                                        onClick={deleteSelectedStatements}
+                                        className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors"
+                                    >
+                                        Delete Selected ({selectedStatements.size})
+                                    </button>
+                                )}
+                                <button
+                                    onClick={deleteAllStatements}
+                                    className="bg-red-700 text-white px-4 py-2 rounded-md hover:bg-red-800 transition-colors"
+                                >
+                                    Delete All
+                                </button>
+                                <button
+                                    onClick={() => setShowCreateModal(true)}
+                                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                                >
+                                    Add Statement
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -336,6 +445,14 @@ export default function StatementsPage() {
                         <table className="w-full">
                             <thead className="bg-gray-50">
                                 <tr>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectAll}
+                                            onChange={(e) => handleSelectAll(e.target.checked)}
+                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                    </th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
@@ -346,7 +463,7 @@ export default function StatementsPage() {
                             <tbody className="bg-white divide-y divide-gray-200">
                                 {loading ? (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-4 text-center">
+                                        <td colSpan={7} className="px-6 py-4 text-center">
                                             <div className="flex justify-center items-center">
                                                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                                                 <span className="ml-2">Loading...</span>
@@ -355,13 +472,21 @@ export default function StatementsPage() {
                                     </tr>
                                 ) : statements.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                                        <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                                             No statements found
                                         </td>
                                     </tr>
                                 ) : (
                                     statements.map((statement) => (
                                         <tr key={statement.id} className="hover:bg-gray-50">
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedStatements.has(statement.id!)}
+                                                    onChange={(e) => handleStatementSelect(statement.id!, e.target.checked)}
+                                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                />
+                                            </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                                 {new Date(statement.date).toLocaleDateString()}
                                             </td>

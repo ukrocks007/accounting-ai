@@ -110,3 +110,47 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+// DELETE /api/statements - Delete multiple statements or all statements
+export async function DELETE(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    const deleteAll = searchParams.get("deleteAll") === "true";
+    
+    if (deleteAll) {
+      // Delete all statements
+      const deletedCount = await dbManager.deleteAllStatements();
+      
+      return NextResponse.json({
+        success: true,
+        message: `Successfully deleted ${deletedCount} statements`,
+        deletedCount,
+      });
+    } else {
+      // Delete specific statements by IDs
+      const body = await request.json();
+      const { ids } = body;
+
+      if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        return NextResponse.json(
+          { success: false, error: "No statement IDs provided" },
+          { status: 400 }
+        );
+      }
+
+      const deletedCount = await dbManager.deleteStatements({ ids });
+      
+      return NextResponse.json({
+        success: true,
+        message: `Successfully deleted ${deletedCount} statements`,
+        deletedCount,
+      });
+    }
+  } catch (error) {
+    console.error("Error deleting statements:", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to delete statements" },
+      { status: 500 }
+    );
+  }
+}

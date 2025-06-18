@@ -535,6 +535,20 @@ export class DatabaseManager {
     }
   }
 
+  /**
+   * Delete all statements
+   */
+  public async deleteAllStatements(): Promise<number> {
+    const db = await this.openDatabase();
+
+    try {
+      const result = await db.run("DELETE FROM statements");
+      return result.changes || 0;
+    } finally {
+      await db.close();
+    }
+  }
+
   // ===== PROCESSING JOBS OPERATIONS =====
 
   /**
