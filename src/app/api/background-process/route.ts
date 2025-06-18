@@ -10,9 +10,8 @@ async function openDatabase() {
   });
 }
 
-async function getProcessingJobStatus() {
+async function getProcessingJobStatus(filename?: string) {
   const db = await openDatabase();
-  
   try {
     // Create table if it doesn't exist
     await db.exec(`CREATE TABLE IF NOT EXISTS processing_jobs (
@@ -30,6 +29,24 @@ async function getProcessingJobStatus() {
       max_retries INTEGER DEFAULT 3
     )`);
 
+    let job = null;
+    if (filename) {
+      job = await db.get(`
+        SELECT 
+          filename, file_type, status, total_chunks, 
+          processed_at, error_message, created_at,
+          retry_count, max_retries,
+          CASE 
+            WHEN status = 'completed' THEN 'Processed and saved to database'
+            WHEN status = 'failed' THEN error_message
+            WHEN status = 'processing' THEN 'Currently processing...'
+            ELSE 'Waiting in queue'
+          END as status_description
+        FROM processing_jobs 
+        WHERE filename = ?
+        ORDER BY created_at DESC
+      `, [filename]);
+    }
     const jobs = await db.all(`
       SELECT 
         filename, file_type, status, total_chunks, 
@@ -44,7 +61,6 @@ async function getProcessingJobStatus() {
       FROM processing_jobs 
       ORDER BY created_at DESC
     `);
-
     const summary = await db.get(`
       SELECT 
         COUNT(*) as total_jobs,
@@ -54,8 +70,7 @@ async function getProcessingJobStatus() {
         SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_jobs
       FROM processing_jobs
     `);
-
-    return { jobs, summary };
+    return { job, jobs, summary };
   } finally {
     await db.close();
   }
@@ -66,8 +81,16 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');
 
+
     if (action === 'status') {
-      const { jobs, summary } = await getProcessingJobStatus();
+      const filename = searchParams.get('filename') || undefined;
+      const { job, jobs, summary } = await getProcessingJobStatus(filename);
+      if (filename) {
+        return NextResponse.json({
+          job,
+          message: "Job status retrieved successfully"
+        });
+      }
       return NextResponse.json({
         summary,
         jobs,

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 
 interface ChatMessage {
   id: string;
@@ -28,8 +29,10 @@ export default function Home() {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [editingRow, setEditingRow] = useState<number | null>(null);
+  const [backgroundJob, setBackgroundJob] = useState<{ filename: string; checkStatusEndpoint: string } | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const JobStatus = dynamic(() => import("./components/JobStatus"), { ssr: false });
 
   // Auto scroll to bottom when new messages are added
   useEffect(() => {
@@ -60,18 +63,20 @@ export default function Home() {
       const result = await response.json();
       if (response.ok) {
         let successMessage = `File processed successfully: ${result.file.filename}`;
-
         if (result.ragProcessed && result.backgroundProcessing?.enabled) {
-          successMessage += `\n\n📋 Large document detected! Background processing has been enabled:
-• Document stored for advanced RAG retrieval
-• Transactions will be automatically extracted and saved to database
-• Check processing status at /admin/background-processing
-• Background processor runs every 5 minutes`;
+          successMessage += `\n\n📋 Large document detected! Background processing has been enabled.`;
+          setBackgroundJob({
+            filename: result.file.filename,
+            checkStatusEndpoint: result.backgroundProcessing.checkStatusEndpoint || "/api/background-process?action=status"
+          });
+          setShowReviewModal(false);
+          setExtractedData([]);
+        } else {
+          setExtractedData(result.extractedData || []);
+          setShowReviewModal(true);
+          setBackgroundJob(null);
         }
-
         setMessage(successMessage);
-        setExtractedData(result.extractedData || []);
-        setShowReviewModal(true);
       } else {
         setMessage(`Error: ${result.error}`);
       }
@@ -217,13 +222,18 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Header */}
       <div className="bg-white shadow-sm border-b border-gray-300">
-        <div className="max-w-4xl mx-auto px-4 py-2">
+        <div className="max-w-6xl mx-auto px-2 py-2">
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-2xl font-bold text-gray-800">Accounting AI Assistant</h1>
               <p className="text-gray-600 text-sm">Upload your financial documents (PDF, Excel, CSV) and ask questions</p>
             </div>
-            <nav className="flex gap-4">
+            <nav className="flex gap-4 items-center">
+              {backgroundJob && (
+                <div className="mr-4">
+                  <JobStatus checkStatusEndpoint={backgroundJob.checkStatusEndpoint} filename={backgroundJob.filename} />
+                </div>
+              )}
               <Link
                 href="/statements"
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
@@ -241,7 +251,7 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto p-4">
+      <div className="max-w-6xl mx-auto p-2">
         {/* File Upload Section */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-4">
           <h2 className="text-lg font-semibold mb-4 flex items-center">
@@ -368,14 +378,13 @@ export default function Home() {
       </div>
 
       {/* Review Modal */}
-      {showReviewModal && (
+      {showReviewModal && !backgroundJob && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
             <div className="p-6 border-b border-gray-300">
               <h2 className="text-xl font-bold text-gray-800">Review Extracted Data</h2>
               <p className="text-gray-600 mt-1">Please review and edit the extracted transactions before saving to database</p>
             </div>
-
             <div className="p-6 overflow-y-auto max-h-[60vh]">
               {extractedData.length === 0 ? (
                 <div className="text-center py-8">
@@ -450,10 +459,7 @@ export default function Home() {
                                 <option value="debit">Debit</option>
                               </select>
                             ) : (
-                              <span onClick={() => setEditingRow(index)} className={`cursor-pointer hover:bg-gray-100 px-2 py-1 rounded capitalize ${row.type === 'credit' ? 'text-green-600' : 'text-red-600'
-                                }`}>
-                                {row.type}
-                              </span>
+                              <span onClick={() => setEditingRow(index)} className={`cursor-pointer hover:bg-gray-100 px-2 py-1 rounded capitalize ${row.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>{row.type}</span>
                             )}
                           </td>
                           <td className="border border-gray-300 px-4 py-2">
@@ -487,7 +493,6 @@ export default function Home() {
                   </table>
                 </div>
               )}
-
               <div className="mt-4">
                 <button
                   onClick={handleAddRow}
@@ -497,7 +502,6 @@ export default function Home() {
                 </button>
               </div>
             </div>
-
             <div className="p-6 border-t flex justify-end gap-4">
               <button
                 onClick={() => {
