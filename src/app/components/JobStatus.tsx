@@ -1,97 +1,124 @@
-import { useEffect, useState } from "react";
+import { useState, useMemo, memo } from "react";
+import { Info, X, CheckCircle, AlertTriangle, Loader2 } from "lucide-react";
+import { useJobPolling } from "../hooks/useJobPolling";
 
 interface JobStatusProps {
-  checkStatusEndpoint: string;
-  filename: string;
+    checkStatusEndpoint: string;
+    filename: string;
 }
 
-interface Job {
-  status?: string;
-  status_description?: string;
-  error_message?: string;
-  total_chunks?: number;
-  processed_at?: string;
-  created_at?: string;
-}
+function JobStatus({ checkStatusEndpoint, filename }: JobStatusProps) {
+    const [visible, setVisible] = useState(true);
+    const { job, error, loading } = useJobPolling({
+        checkStatusEndpoint,
+        filename,
+        enablePolling: visible // Stop polling when component is hidden
+    });
 
-export default function JobStatus({ checkStatusEndpoint, filename }: JobStatusProps) {
-  const [job, setJob] = useState<Job | null>(null);
-  const [error, setError] = useState<string>("");
-  const [loading, setLoading] = useState(true);
+    // Memoize status styling to prevent recalculation on every render
+    const statusConfig = useMemo(() => {
+        const config = {
+            color: "text-blue-600",
+            bar: "bg-blue-400",
+            progress: "30%",
+            icon: <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+        };
 
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    const fetchStatus = async () => {
-      try {
-        setLoading(true);
-        const res = await fetch(`${checkStatusEndpoint}&filename=${encodeURIComponent(filename)}`);
-        const data = await res.json();
-        if (data.job) {
-          setJob(data.job);
-          setError("");
-        } else {
-          setJob(null);
-          setError("No job found");
+        if (job?.status === "completed") {
+            config.color = "text-green-600";
+            config.bar = "bg-green-400";
+            config.progress = "100%";
+            config.icon = <CheckCircle className="w-4 h-4 text-green-600" />;
+        } else if (job?.status === "failed") {
+            config.color = "text-red-600";
+            config.bar = "bg-red-400";
+            config.progress = "100%";
+            config.icon = <AlertTriangle className="w-4 h-4 text-red-600" />;
+        } else if (job?.status === "processing") {
+            config.color = "text-yellow-600";
+            config.bar = "bg-yellow-400";
+            config.progress = "60%";
+            config.icon = <Loader2 className="w-4 h-4 animate-spin text-yellow-600" />;
         }
-      } catch (e) {
-        setError("Failed to fetch job status");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchStatus();
-    interval = setInterval(fetchStatus, 3000);
-    return () => clearInterval(interval);
-  }, [checkStatusEndpoint, filename]);
 
-  let statusColor = "text-blue-600";
-  let statusBar = "bg-blue-400";
-  if (job?.status === "completed") {
-    statusColor = "text-green-600";
-    statusBar = "bg-green-400";
-  } else if (job?.status === "failed") {
-    statusColor = "text-red-600";
-    statusBar = "bg-red-400";
-  } else if (job?.status === "processing") {
-    statusColor = "text-yellow-600";
-    statusBar = "bg-yellow-400";
-  }
+        return config;
+    }, [job?.status]);
 
-  return (
-    <div className="rounded-lg shadow-md px-4 py-3 bg-white border border-gray-200 min-w-[260px] max-w-xs flex flex-col items-start">
-      <div className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M12 20a8 8 0 100-16 8 8 0 000 16z" />
-        </svg>
-        Background Job Status
-      </div>
-      {loading ? (
-        <div className="text-gray-500 animate-pulse">Checking status...</div>
-      ) : error ? (
-        <div className="text-red-600">{error}</div>
-      ) : job ? (
-        <>
-          <div className={`font-bold ${statusColor} text-sm mb-1`}>{job.status_description || job.status}</div>
-          <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden mb-2">
-            <div
-              className={`${statusBar} h-2 rounded-full transition-all duration-500`}
-              style={{ width: job.status === "completed" ? "100%" : job.status === "failed" ? "100%" : job.status === "processing" ? "60%" : "30%" }}
-            ></div>
-          </div>
-          <div className="text-xs text-gray-500 mb-1">
-            <span className="font-medium">File:</span> {filename}
-          </div>
-          <div className="text-xs text-gray-500 mb-1">
-            <span className="font-medium">Status:</span> {job.status}
-          </div>
-          {job.error_message && (
-            <div className="text-xs text-red-500 mb-1">Error: {job.error_message}</div>
-          )}
-          {job.processed_at && (
-            <div className="text-xs text-green-600 mb-1">Processed at: {new Date(job.processed_at).toISOString().replace('T', ' ').replace(/\..+/, '')}</div>
-          )}
-        </>
-      ) : null}
-    </div>
-  );
+    // Memoize formatted processed date to prevent recalculation
+    const formattedProcessedAt = useMemo(() => {
+        if (!job?.processed_at) return null;
+        return new Date(job.processed_at).toISOString().replace('T', ' ').replace(/\..+/, '');
+    }, [job?.processed_at]);
+
+    if (!visible) return null;
+
+    return (
+        <div className="fixed top-6 right-6 z-50 rounded-lg shadow-2xl px-4 py-3 bg-white border border-gray-200 min-w-[260px] max-w-xs flex flex-col items-start animate-fade-in">
+            <button
+                className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 focus:outline-none"
+                aria-label="Close"
+                onClick={() => setVisible(false)}
+                style={{ background: "none", border: "none", padding: 0, margin: 0 }}
+            >
+                <X className="w-5 h-5" />
+            </button>
+            
+            <div className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
+                <Info className="w-5 h-5" />
+                Background Job Status
+            </div>
+            <div className="px-1 py-1">
+                {loading ? (
+                    <div className="text-gray-500 animate-pulse flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Checking status...
+                    </div>
+                ) : error ? (
+                    <div className="text-red-600 flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4" />
+                        {error}
+                    </div>
+                ) : job ? (
+                    <>
+                        <div className={`font-bold ${statusConfig.color} text-sm mb-1 flex items-center gap-2`}>
+                            {statusConfig.icon}
+                            {job.status_description || job.status}
+                        </div>
+                        
+                        <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden mb-2">
+                            <div
+                                className={`${statusConfig.bar} h-2 rounded-full transition-all duration-500`}
+                                style={{ width: statusConfig.progress }}
+                            />
+                        </div>
+                        
+                        <div className="text-xs text-gray-500 mb-1">
+                            <span className="font-medium">File:</span> {filename}
+                        </div>
+                        
+                        <div className="text-xs text-gray-500 mb-1">
+                            <span className="font-medium">Status:</span> {job.status}
+                        </div>
+                        
+                        {job.error_message && (
+                            <div className="text-xs text-red-500 mb-1 flex items-center gap-1">
+                                <AlertTriangle className="w-3 h-3" />
+                                Error: {job.error_message}
+                            </div>
+                        )}
+                        
+                        {formattedProcessedAt && (
+                            <div className="text-xs text-green-600 mb-1 flex items-center gap-1">
+                                <CheckCircle className="w-3 h-3" />
+                                Processed at: {formattedProcessedAt}
+                            </div>
+                        )}
+                    </>
+                ) : null}
+            </div>
+        </div>
+    );
 }
+
+// Memoize the component to prevent unnecessary re-renders when parent re-renders
+export default memo(JobStatus);
