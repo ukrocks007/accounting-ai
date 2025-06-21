@@ -1,6 +1,5 @@
 import { getDocumentChunksForProcessing, cleanupProcessedDocument } from './documentProcessor';
-import { createModelClient, getModelRequestParams } from './modelUtils';
-import { isUnexpected } from "@azure-rest/ai-inference";
+import { generateCompletion } from './modelUtils';
 import { jsonrepair } from "jsonrepair";
 import { dbManager, StatementRow, ProcessingJob as DBProcessingJob } from '../lib/dbManager';
 
@@ -63,21 +62,16 @@ async function updateJobStatus(
 async function* extractTransactionsFromChunks(
   chunks: Array<{ text: string; score: number; metadata: Record<string, unknown> }>
 ): AsyncGenerator<TransactionRow[], void, unknown> {
-  const client = createModelClient('upload');
-  const modelParams = getModelRequestParams('upload');
-
   // Process chunks individually to avoid token limit issues
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i];
     console.log(`Processing chunk ${i + 1} of ${chunks.length}`);
     
     try {
-      const response = await client.path("/chat/completions").post({
-        body: {
-          messages: [
-            {
-              role: "system",
-              content: `You are a helpful assistant. Process the financial document content and extract transactions. 
+      const messages = [
+        {
+          role: "system" as const,
+          content: `You are a helpful assistant. Process the financial document content and extract transactions. 
 
 Make sure you only return the transactions in JSON format and nothing else. Look for information that represents:
 - Date (formats DD/MM/YYYY)
@@ -106,22 +100,15 @@ Important:
 - Set type as "debit" for expenses/withdrawals and "credit" for income/deposits
 - Clean up descriptions to remove extra spaces and characters
 - Only extract clear, valid transactions - skip headers, summaries, or unclear entries`,
-            },
-            {
-              role: "user",
-              content: `Please extract transactions from this financial document chunk:\n\n${chunk.text}`,
-            },
-          ],
-          ...modelParams,
         },
-      });
+        {
+          role: "user" as const,
+          content: `Please extract transactions from this financial document chunk:\n\n${chunk.text}`,
+        },
+      ];
 
-      if (isUnexpected(response)) {
-        console.error(`LLM API error for chunk ${i + 1}:`, response.body.error);
-        continue; // Skip this chunk and continue with others
-      }
-
-      const result = response.body.choices[0].message.content;
+      const response = await generateCompletion(messages, 'upload');
+      const result = response.choices[0]?.message?.content;
 
       try {
         const repairedJson = jsonrepair(result || "");

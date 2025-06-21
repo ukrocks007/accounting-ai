@@ -12,6 +12,7 @@
     "test-rag": "npx ts-node --project tsconfig-scripts.json test-rag.ts",
     "migrate-chunks": "npx ts-node --project tsconfig-scripts.json migrate-chunks.ts",
     "test-document-processing": "npx ts-node --project tsconfig-scripts.json test-document-processing.ts",
+    "models": "npx ts-node --project tsconfig-scripts.json scripts/models-cli.ts",
     "db": "npx ts-node --project tsconfig-scripts.json src/scripts/dbUtils.ts",
     "db:init": "npx ts-node --project tsconfig-scripts.json src/scripts/initDb.ts",
     "db:migrate": "npx ts-node --project tsconfig-scripts.json src/scripts/migrate.ts",

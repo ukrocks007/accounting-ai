@@ -1,7 +1,5 @@
 import { Pinecone } from '@pinecone-database/pinecone';
-import ModelClient from "@azure-rest/ai-inference";
-import { AzureKeyCredential } from "@azure/core-auth";
-import { isUnexpected } from "@azure-rest/ai-inference";
+import { generateEmbedding } from './modelUtils';
 import { getActiveModelConfig } from '../constants/models';
 
 // Types for better type safety
@@ -60,14 +58,6 @@ export function getPineconeClient(): Pinecone {
 const INDEX_NAME = process.env.PINECONE_INDEX_NAME || 'accounting-documents';
 const CHUNK_SIZE = 3000;
 const CHUNK_OVERLAP = 200;
-
-/**
- * Create embedding client using Azure AI Inference
- */
-function createEmbeddingClient() {
-  const config = getActiveModelConfig('embedding'); // Use embedding-specific config
-  return ModelClient(config.endpoint, new AzureKeyCredential(config.credential));
-}
 
 export interface DocumentChunk {
   id: string;
@@ -149,34 +139,25 @@ export async function generateEmbeddings(chunks: DocumentChunk[]): Promise<Embed
   const config = getActiveModelConfig('embedding');
   console.log('Embedding config:', {
     model: config.model,
+    provider: config.provider,
     endpoint: config.endpoint,
     hasCredential: !!config.credential,
     credentialLength: config.credential?.length || 0
   });
   
-  if (!config.credential) {
+  if (!config.credential && config.provider !== 'ollama') {
     throw new Error('Model credential is required for generating embeddings');
   }
   
-  const client = createEmbeddingClient();
   const embeddings = [];
   
   for (const chunk of chunks) {
     try {
-      const response = await client.path("/embeddings").post({
-        body: {
-          model: config.model, // Use model from configuration
-          input: [chunk.text], // Azure AI Inference expects an array
-        },
-      });
-
-      if (isUnexpected(response)) {
-        throw new Error(`Embedding API error: ${JSON.stringify(response.body)}`);
-      }
+      const embeddingVector = await generateEmbedding(chunk.text, 'embedding');
       
       embeddings.push({
         id: chunk.id,
-        values: response.body.data[0].embedding as number[],
+        values: embeddingVector,
         metadata: {
           ...chunk.metadata,
           text: chunk.text, // Store the actual text in metadata for retrieval
@@ -220,24 +201,13 @@ export async function searchRelevantChunks(query: string, topK: number = 5): Pro
   try {
     const pinecone = getPineconeClient();
     
-    // Generate embedding for the query using Azure AI Inference
-    const client = createEmbeddingClient();
-    const config = getActiveModelConfig('embedding');
-    const response = await client.path("/embeddings").post({
-      body: {
-        model: config.model, // Use model from configuration
-        input: [query], // Azure AI Inference expects an array
-      },
-    });
-
-    if (isUnexpected(response)) {
-      throw new Error(`Embedding API error: ${JSON.stringify(response.body)}`);
-    }
+    // Generate embedding for the query using the universal system
+    const queryEmbedding = await generateEmbedding(query, 'embedding');
     
     // Search in Pinecone
     const index = pinecone.index(INDEX_NAME);
     const searchResults = await index.query({
-      vector: response.body.data[0].embedding as number[],
+      vector: queryEmbedding,
       topK,
       includeMetadata: true,
     });

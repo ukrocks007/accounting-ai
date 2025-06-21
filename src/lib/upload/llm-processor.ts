@@ -1,6 +1,5 @@
 import { jsonrepair } from "jsonrepair";
-import { isUnexpected } from "@azure-rest/ai-inference";
-import { createModelClient, getModelRequestParams } from "../../utils/modelUtils";
+import { generateCompletion } from "../../utils/modelUtils";
 import { processDocumentForBackgroundProcessing } from "../../utils/documentProcessor";
 import { processFileByType } from "./file-processors";
 
@@ -11,10 +10,6 @@ export async function processFileWithLLM(filepath: string, fileExtension: string
   if (processedData.error) {
     throw new Error(processedData.error);
   }
-
-  // Get model client and parameters for upload processing
-  const client = createModelClient('upload');
-  const modelParams = getModelRequestParams('upload');
 
   let contentToProcess = '';
   let ragProcessed = false;
@@ -98,24 +93,14 @@ export async function processFileWithLLM(filepath: string, fileExtension: string
     }
   ];
 
-  const response = await client.path("/chat/completions").post({
-    body: {
-      messages,
-      ...modelParams,
-      temperature: 0.1, // Low temperature for consistent output
-    },
-  });
-
-  if (isUnexpected(response)) {
-    throw new Error(`LLM API error: ${response.body.error}`);
-  }
-
-  const content = response.body.choices[0].message.content;
-  if (!content) {
-    throw new Error('No response from LLM');
-  }
-
   try {
+    const response = await generateCompletion(messages, 'upload');
+    const content = response.choices[0]?.message?.content;
+    
+    if (!content) {
+      throw new Error('No response from LLM');
+    }
+
     // Clean and repair JSON
     const cleanedJson = content.trim().replace(/```json\n?/g, '').replace(/```\n?/g, '');
     const repairedJson = jsonrepair(cleanedJson);
@@ -130,8 +115,7 @@ export async function processFileWithLLM(filepath: string, fileExtension: string
       } : undefined
     };
   } catch (parseError) {
-    console.error('JSON parsing failed:', parseError);
-    console.error('Raw content:', content);
+    console.error('LLM processing failed:', parseError);
     return {
       extractedData: [],
       ragProcessed,
