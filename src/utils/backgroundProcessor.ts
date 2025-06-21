@@ -58,27 +58,29 @@ async function updateJobStatus(
 
 /**
  * Extract transactions from document chunks using LLM
+ * Yields transactions as soon as each chunk is processed
  */
-async function extractTransactionsFromChunks(
+async function* extractTransactionsFromChunks(
   chunks: Array<{ text: string; score: number; metadata: Record<string, unknown> }>
-): Promise<TransactionRow[]> {
-  // Combine all chunk texts into a single document
-  const combinedText = chunks
-    .map(chunk => chunk.text)
-    .join('\n\n---\n\n');
-
+): AsyncGenerator<TransactionRow[], void, unknown> {
   const client = createModelClient('upload');
   const modelParams = getModelRequestParams('upload');
 
-  const response = await client.path("/chat/completions").post({
-    body: {
-      messages: [
-        {
-          role: "system",
-          content: `You are a helpful assistant. Process the financial document content and extract transactions. 
+  // Process chunks individually to avoid token limit issues
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    console.log(`Processing chunk ${i + 1} of ${chunks.length}`);
+    
+    try {
+      const response = await client.path("/chat/completions").post({
+        body: {
+          messages: [
+            {
+              role: "system",
+              content: `You are a helpful assistant. Process the financial document content and extract transactions. 
 
 Make sure you only return the transactions in JSON format and nothing else. Look for information that represents:
-- Date (various formats like MM/DD/YYYY, DD/MM/YYYY, YYYY-MM-DD)
+- Date (formats DD/MM/YYYY)
 - Description/Transaction details/Memo
 - Amount (positive or negative numbers, or separate debit/credit columns)
 - Transaction type (debit/credit, or infer from amount sign)
@@ -104,42 +106,51 @@ Important:
 - Set type as "debit" for expenses/withdrawals and "credit" for income/deposits
 - Clean up descriptions to remove extra spaces and characters
 - Only extract clear, valid transactions - skip headers, summaries, or unclear entries`,
+            },
+            {
+              role: "user",
+              content: `Please extract transactions from this financial document chunk:\n\n${chunk.text}`,
+            },
+          ],
+          ...modelParams,
         },
-        {
-          role: "user",
-          content: `Please extract transactions from this financial document:\n\n${combinedText}`,
-        },
-      ],
-      ...modelParams,
-    },
-  });
+      });
 
-  if (isUnexpected(response)) {
-    throw new Error(`LLM API error: ${response.body.error}`);
-  }
+      if (isUnexpected(response)) {
+        console.error(`LLM API error for chunk ${i + 1}:`, response.body.error);
+        continue; // Skip this chunk and continue with others
+      }
 
-  const result = response.body.choices[0].message.content;
+      const result = response.body.choices[0].message.content;
 
-  try {
-    const repairedJson = jsonrepair(result || "");
-    const parsedResult = JSON.parse(repairedJson);
+      try {
+        const repairedJson = jsonrepair(result || "");
+        const parsedResult = JSON.parse(repairedJson);
 
-    if (parsedResult?.rows && Array.isArray(parsedResult.rows)) {
-      // Validate and clean up the extracted transactions
-      return parsedResult.rows
-        .filter((row: { date?: unknown; description?: unknown; amount?: unknown }) => 
-          row.date && row.description && typeof row.amount === 'number'
-        )
-        .map((row: { date: string; description: string; amount: number; type?: string }) => ({
-          ...row,
-          type: row.type || 'debit' // Default to 'debit' if type is missing
-        }));
+        if (parsedResult?.rows && Array.isArray(parsedResult.rows)) {
+          // Validate and clean up the extracted transactions
+          const chunkTransactions = parsedResult.rows
+            .filter((row: { date?: unknown; description?: unknown; amount?: unknown }) => 
+              row.date && row.description && typeof row.amount === 'number'
+            )
+            .map((row: { date: string; description: string; amount: number; type?: string }) => ({
+              ...row,
+              type: row.type || 'debit' // Default to 'debit' if type is missing
+            }));
+          
+          if (chunkTransactions.length > 0) {
+            console.log(`Extracted ${chunkTransactions.length} transactions from chunk ${i + 1}`);
+            yield chunkTransactions; // Yield transactions immediately after processing each chunk
+          }
+        }
+      } catch (error) {
+        console.error(`Failed to parse transaction extraction result for chunk ${i + 1}:`, error);
+        continue; // Skip this chunk and continue with others
+      }
+    } catch (error) {
+      console.error(`Error processing chunk ${i + 1}:`, error);
+      continue; // Skip this chunk and continue with others
     }
-    
-    return [];
-  } catch (error) {
-    console.error("Failed to parse transaction extraction result:", error);
-    return [];
   }
 }
 
@@ -198,15 +209,24 @@ async function processJob(job: ProcessingJob): Promise<void> {
       metadata: chunk.metadata
     }));
     
-    // Extract transactions from chunks
-    const transactions = await extractTransactionsFromChunks(formattedChunks);
+    // Extract transactions from chunks using the generator
+    const transactionGenerator = extractTransactionsFromChunks(formattedChunks);
+    let totalTransactions = 0;
     
-    if (transactions.length === 0) {
+    // Process transactions as they are yielded from each chunk
+    for await (const chunkTransactions of transactionGenerator) {
+      if (chunkTransactions.length > 0) {
+        // Save transactions to database immediately after each chunk is processed
+        await saveTransactionsToDatabase(chunkTransactions);
+        totalTransactions += chunkTransactions.length;
+        console.log(`Saved ${chunkTransactions.length} transactions from current chunk. Total so far: ${totalTransactions}`);
+      }
+    }
+    
+    if (totalTransactions === 0) {
       console.log(`No transactions extracted from ${job.filename}`);
     } else {
-      // Save transactions to database
-      await saveTransactionsToDatabase(transactions);
-      console.log(`Successfully processed ${transactions.length} transactions from ${job.filename}`);
+      console.log(`Successfully processed ${totalTransactions} transactions from ${job.filename}`);
     }
     
     // Clean up document chunks from database after successful processing

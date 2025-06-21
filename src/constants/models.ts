@@ -13,7 +13,7 @@ export interface ModelConfig {
 export const MODEL_CONFIGS = {
   // Configuration for file upload processing
   UPLOAD_PROCESSOR: {
-    model: "meta/Llama-4-Maverick-17B-128E-Instruct-FP8",
+    model: "meta/Llama-3.3-70B-Instruct",
     temperature: 0.8,
     top_p: 0.1,
     max_tokens: 4096,
@@ -23,7 +23,7 @@ export const MODEL_CONFIGS = {
 
   // Configuration for chat conversations
   CHAT_ASSISTANT: {
-    model: "meta/Llama-4-Maverick-17B-128E-Instruct-FP8",
+    model: "meta/Llama-3.3-70B-Instruct",
     temperature: 0.1,
     max_tokens: 4096,
     endpoint: "https://models.github.ai/inference",
