@@ -212,7 +212,7 @@ export function useStatements() {
         if (!confirm('Are you sure you want to delete ALL statements? This action cannot be undone.')) return { success: false };
 
         try {
-            const response = await fetch('/api/statements/all', {
+            const response = await fetch('/api/statements?deleteAll=true', {
                 method: 'DELETE',
             });
 

@@ -58,7 +58,7 @@ OPENAI_API_KEY=your-openai-api-key-here
 
 1. **File Processing**: When a document is uploaded, text is extracted
 2. **Size Check**: If extracted text > 4096 characters:
-   - Text is split into overlapping chunks (~4000 chars each)
+   - Text is split into overlapping chunks (~3000 chars each)
    - Each chunk gets embedded using OpenAI's text-embedding-3-small
    - Embeddings are stored in Pinecone with metadata
 3. **Transaction Extraction**: The system still processes transactions from the first part of the document
@@ -96,7 +96,7 @@ OPENAI_API_KEY=your-openai-api-key-here
 
 ### Chunk Settings (in embeddings.ts)
 ```typescript
-const CHUNK_SIZE = 4000; // Maximum characters per chunk
+const CHUNK_SIZE = 3000; // Maximum characters per chunk
 const CHUNK_OVERLAP = 200; // Overlap between chunks
 ```
 

@@ -2,6 +2,16 @@ import { useState, useMemo, memo } from "react";
 import { Info, X, CheckCircle, AlertTriangle, Loader2 } from "lucide-react";
 import { useJobPolling } from "../hooks/useJobPolling";
 
+// Helper function to capitalize first letter of a string
+const capitalize = (str: string = "") => {
+    if (!str) return str;
+    if (typeof str !== "string") return str;
+    str = str.trim();
+    if (str.length === 0) return str;
+    if (str.length === 1) return str.toUpperCase();
+    return str.charAt(0).toUpperCase() + str.slice(1);
+};
+
 interface JobStatusProps {
     checkStatusEndpoint: string;
     filename: string;
@@ -85,19 +95,19 @@ function JobStatus({ checkStatusEndpoint, filename }: JobStatusProps) {
                             {job.status_description || job.status}
                         </div>
 
-                        <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden mb-2">
+                        <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden mb-3">
                             <div
                                 className={`${statusConfig.bar} h-2 rounded-full transition-all duration-500`}
                                 style={{ width: statusConfig.progress }}
                             />
                         </div>
 
-                        <div className="text-xs text-gray-500 mb-1">
-                            <span className="font-medium">File:</span> {filename}
+                        <div className="text-xs text-gray-500 mb-2">
+                            <span className="font-medium">File:</span> <span className="break-all">{filename}</span>
                         </div>
 
                         <div className="text-xs text-gray-500 mb-1">
-                            <span className="font-medium">Status:</span> {job.status}
+                            <span className="font-medium">Status:</span> {capitalize(job.status)}
                         </div>
 
                         {job.error_message && (

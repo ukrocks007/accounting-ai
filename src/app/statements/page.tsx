@@ -1,13 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useStatements } from '@/hooks/useStatements';
 import { CreateEditModal } from '@/components/statements/CreateEditModal';
 import { Filters } from '@/components/statements/Filters';
 import { StatementsTable } from '@/components/statements/StatementsTable';
 import { Pagination } from '@/components/statements/Pagination';
 import { StatementRow } from '@/lib/dbManager';
+import { Header } from '@/components/Header';
 
 export default function StatementsPage() {
     const statementsHook = useStatements();
@@ -74,30 +74,15 @@ export default function StatementsPage() {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            {/* Header */}
-            <div className="bg-white shadow-sm border-b">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <h1 className="text-2xl font-bold text-gray-900">Statements Management</h1>
-                            <p className="text-sm text-gray-600 mt-1">
-                                Manage your financial statements and transactions
-                            </p>
-                        </div>
-                        <Link
-                            href="/"
-                            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-                        >
-                            ← Back to Chat
-                        </Link>
-                    </div>
-                </div>
-            </div>
+            <Header 
+                title="Statements Management"
+                description="Manage your financial statements and transactions"
+            />
 
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
                 {/* Error Display */}
                 {statementsHook.error && (
-                    <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
+                    <div className="mb-4 p-2 bg-red-50 border border-red-200 rounded-md">
                         <p className="text-red-600">{statementsHook.error}</p>
                         <button
                             onClick={() => statementsHook.setError(null)}
@@ -117,7 +102,7 @@ export default function StatementsPage() {
                 />
 
                 {/* Actions */}
-                <div className="mb-6 flex flex-wrap gap-4 items-center justify-between">
+                <div className="mb-2 flex flex-wrap gap-4 items-center justify-between">
                     <div className="flex gap-4">
                         <button
                             onClick={() => setShowCreateModal(true)}

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import Link from "next/link";
 import dynamic from "next/dynamic";
+import { Header } from "@/components/Header";
 
 interface ChatMessage {
   id: string;
@@ -204,6 +204,7 @@ const TransactionTable = ({ transactions }: { transactions: Record<string, unkno
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [message, setMessage] = useState("");
+  const [largeDocument, setLargeDocument] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -245,9 +246,9 @@ export default function Home() {
 
       const result = await response.json();
       if (response.ok) {
-        let successMessage = `File processed successfully: ${result.file.filename}`;
+        const successMessage = `File processed successfully: ${result.file.filename}`;
         if (result.ragProcessed && result.backgroundProcessing?.enabled) {
-          successMessage += `\n\n📋 Large document detected! Background processing has been enabled.`;
+          setLargeDocument(true);
           setBackgroundJob({
             filename: result.file.filename,
             checkStatusEndpoint: result.backgroundProcessing.checkStatusEndpoint || "/api/background-process?action=status"
@@ -411,36 +412,16 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-300">
-        <div className="max-w-6xl mx-auto px-2 py-2">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">Accounting AI Assistant</h1>
-              <p className="text-gray-600 text-sm">Upload your financial documents (PDF, Excel, CSV) and ask questions</p>
-            </div>
-            <nav className="flex gap-4 items-center">
-              {backgroundJob && (
-                <div className="mr-4">
-                  <JobStatus checkStatusEndpoint={backgroundJob.checkStatusEndpoint} filename={backgroundJob.filename} />
-                </div>
-              )}
-              <Link
-                href="/statements"
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-              >
-                Manage Statements
-              </Link>
-              <Link
-                href="/admin/background-processing"
-                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
-              >
-                Admin Panel
-              </Link>
-            </nav>
+      <Header 
+        title="Accounting AI Assistant"
+        description="Upload your financial documents (PDF, Excel, CSV) and ask questions"
+      >
+        {backgroundJob && (
+          <div className="mr-4">
+            <JobStatus checkStatusEndpoint={backgroundJob.checkStatusEndpoint} filename={backgroundJob.filename} />
           </div>
-        </div>
-      </div>
+        )}
+      </Header>
 
       <div className="max-w-6xl mx-auto p-2">
         {/* File Upload Section */}
@@ -467,8 +448,9 @@ export default function Home() {
             </button>
           </div>
           {message && (
-            <div className={`mt-3 p-3 rounded-lg ${message.includes('successfully') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-              {message}
+            <div className={`mt-3 px-5 py-2 flex flex-col gap-2 rounded-lg ${message.includes('successfully') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+              <div>{message}</div>
+              <div>{largeDocument && <span>📄 Large document detected! Background processing has been enabled.</span>}</div>
             </div>
           )}
         </div>

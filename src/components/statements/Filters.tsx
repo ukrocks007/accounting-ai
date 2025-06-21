@@ -30,7 +30,7 @@ export const Filters: React.FC<FiltersProps> = ({
   };
 
   return (
-    <div className="bg-gray-50 p-4 rounded-lg mb-6">
+    <div className="bg-gray-50 p-2 rounded-lg mb-3">
       <h3 className="text-lg font-medium mb-4">Filters</h3>
       
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">

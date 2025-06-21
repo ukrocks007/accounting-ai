@@ -5,7 +5,7 @@
 
 import { dbManager } from '../lib/dbManager';
 
-const CHUNK_SIZE = 4000; // Slightly smaller than 4096 to allow for overlap
+const CHUNK_SIZE = 3000;
 const CHUNK_OVERLAP = 200;
 
 export interface DocumentChunk {

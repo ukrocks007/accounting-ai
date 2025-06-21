@@ -8,7 +8,7 @@ Successfully implemented RAG (Retrieval-Augmented Generation) functionality for 
 ### 1. Automatic Large Document Processing
 - **Trigger**: When uploaded document text exceeds 4096 characters
 - **Process**: 
-  - Split text into overlapping chunks (~4000 chars each)
+  - Split text into overlapping chunks (~3000 chars each)
   - Generate embeddings using OpenAI's `text-embedding-3-small`
   - Store embeddings in Pinecone vector database
   - Continue with normal transaction extraction from first part
@@ -124,7 +124,7 @@ OPENAI_API_KEY=your-openai-api-key
 ### Vector Storage
 - **Database**: Pinecone serverless
 - **Embeddings**: OpenAI text-embedding-3-small (1536 dimensions)
-- **Chunking**: Overlapping 4000-character chunks
+- **Chunking**: Overlapping 3000-character chunks
 - **Metadata**: Filename, chunk index, file type, upload date
 
 ### Search Pipeline

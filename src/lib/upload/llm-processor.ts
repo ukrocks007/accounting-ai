@@ -94,7 +94,7 @@ export async function processFileWithLLM(filepath: string, fileExtension: string
     },
     {
       role: "user" as const,
-      content: `Extract transaction data from this financial document:\n\n${contentToProcess.substring(0, 4000)}`
+      content: `Extract transaction data from this financial document:\n\n${contentToProcess.substring(0, 3000)}`
     }
   ];
 
