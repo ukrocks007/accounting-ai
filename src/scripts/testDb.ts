@@ -38,7 +38,7 @@ async function testDatabaseManager() {
     console.log('   ✅ Statements saved');
     
     // Test retrieving statements
-    const retrievedStatements = await dbManager.getStatements({ source: 'test' });
+    const retrievedStatements = await dbManager.getStatements({ limit: 10 });
     console.log(`   ✅ Retrieved ${retrievedStatements.length} statements`);
     
     // Test processing jobs

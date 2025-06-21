@@ -13,12 +13,14 @@ export interface StatementRow {
   created_at?: string;
 }
 
+export type JobStatus = "pending" | "processing" | "completed" | "failed";
+
 export interface ProcessingJob {
   id?: number;
   filename: string;
   fileType: string;
   uploadDate: string;
-  status: "pending" | "processing" | "completed" | "failed";
+  status: JobStatus;
   totalChunks: number;
   processedAt?: string;
   errorMessage?: string;
@@ -32,7 +34,7 @@ export interface TableSchema {
   name: string;
   type: string;
   notnull: number;
-  dflt_value: any;
+  dflt_value: string | number | null;
   pk: number;
 }
 
@@ -168,7 +170,7 @@ export class DatabaseManager {
   /**
    * Execute a raw SQL query (for SELECT operations only)
    */
-  public async executeQuery(query: string): Promise<any[]> {
+  public async executeQuery(query: string): Promise<Record<string, unknown>[]> {
     const db = await this.openDatabase();
 
     try {
@@ -298,7 +300,7 @@ export class DatabaseManager {
 
     try {
       let query = "SELECT * FROM statements WHERE 1=1";
-      const params: any[] = [];
+      const params: (string | number)[] = [];
 
       if (filters?.startDate) {
         query += " AND date >= ?";
@@ -373,7 +375,7 @@ export class DatabaseManager {
 
     try {
       let query = "SELECT COUNT(*) as count FROM statements WHERE 1=1";
-      const params: any[] = [];
+      const params: (string | number)[] = [];
 
       if (filters?.startDate) {
         query += " AND date >= ?";
@@ -443,7 +445,7 @@ export class DatabaseManager {
 
     try {
       const fields: string[] = [];
-      const params: any[] = [];
+      const params: (string | number)[] = [];
 
       if (updates.date !== undefined) {
         fields.push("date = ?");
@@ -509,7 +511,7 @@ export class DatabaseManager {
 
     try {
       let query = "DELETE FROM statements WHERE ";
-      const params: any[] = [];
+      const params: (string | number)[] = [];
       const conditions: string[] = [];
 
       if (criteria.ids && criteria.ids.length > 0) {
@@ -601,7 +603,7 @@ export class DatabaseManager {
    * Get processing jobs with optional filtering
    */
   public async getProcessingJobs(filters?: {
-    status?: ProcessingJob["status"];
+    status?: JobStatus;
     filename?: string;
     limit?: number;
   }): Promise<ProcessingJob[]> {
@@ -615,7 +617,7 @@ export class DatabaseManager {
         error_message as errorMessage, created_at as createdAt, retry_count as retryCount,
         last_retry_at as lastRetryAt, max_retries as maxRetries
         FROM processing_jobs WHERE 1=1`;
-      const params: any[] = [];
+      const params: (string | number)[] = [];
 
       if (filters?.status) {
         query += " AND status = ?";
@@ -674,7 +676,7 @@ export class DatabaseManager {
 
     try {
       let query = "DELETE FROM processing_jobs WHERE ";
-      const params: any[] = [];
+      const params: (string | number)[] = [];
       const conditions: string[] = [];
 
       if (criteria.ids && criteria.ids.length > 0) {

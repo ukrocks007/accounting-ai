@@ -3,6 +3,7 @@ import { dbManager } from './dbManager';
 
 // Global variable to store the background processor interval
 declare global {
+  // eslint-disable-next-line no-var
   var backgroundProcessorInterval: NodeJS.Timeout | undefined;
 }
 
@@ -44,7 +45,5 @@ export function stopBackgroundProcessor() {
   }
 }
 
-// Auto-initialize when module is imported
-if (typeof window === 'undefined') { // Only on server side
-  initializeBackgroundProcessor();
-}
+// Note: Background processor needs to be manually initialized in production
+// Call initializeBackgroundProcessor() when the server starts

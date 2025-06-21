@@ -42,3 +42,4 @@ next-env.d.ts
 uploads/*
 .vscode/launch.json
 database.sqlite
+test/data/05-versions-space.pdf.txt

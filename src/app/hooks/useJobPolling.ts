@@ -69,7 +69,7 @@ export function useJobPolling({
                 setError("No job found");
                 shouldContinuePolling.current = false;
             }
-        } catch (e) {
+        } catch {
             setError("Failed to fetch job status");
             // Continue polling on network errors in case it's temporary
         } finally {
@@ -116,7 +116,7 @@ export function useJobPolling({
                 clearTimeout(timeoutRef.current);
             }
         };
-    }, [checkStatusEndpoint, filename]); // Only re-run if endpoint or filename changes
+    }, [checkStatusEndpoint, filename, refetch]); // Only re-run if endpoint or filename changes
 
     // Cleanup on unmount
     useEffect(() => {

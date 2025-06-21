@@ -87,7 +87,7 @@ async function migrateFromLegacySchema() {
   }
 }
 
-async function migrateStatements(db: any) {
+async function migrateStatements(db: import('sqlite').Database) {
   try {
     // Get legacy statements
     const legacyStatements: LegacyStatement[] = await db.all('SELECT * FROM statements');
@@ -99,7 +99,7 @@ async function migrateStatements(db: any) {
     
     // Check if new schema columns exist
     const columns = await db.all("PRAGMA table_info(statements)");
-    const columnNames = columns.map((col: any) => col.name);
+    const columnNames = columns.map((col: { name: string }) => col.name);
     
     const hasSource = columnNames.includes('source');
     const hasUpdatedAt = columnNames.includes('updated_at');
@@ -127,7 +127,7 @@ async function migrateStatements(db: any) {
   }
 }
 
-async function migrateProcessingJobs(db: any) {
+async function migrateProcessingJobs(db: import('sqlite').Database) {
   try {
     // Get legacy processing jobs
     const legacyJobs: LegacyProcessingJob[] = await db.all('SELECT * FROM processing_jobs');
@@ -139,7 +139,7 @@ async function migrateProcessingJobs(db: any) {
     
     // Check if new schema columns exist
     const columns = await db.all("PRAGMA table_info(processing_jobs)");
-    const columnNames = columns.map((col: any) => col.name);
+    const columnNames = columns.map((col: { name: string }) => col.name);
     
     const hasUpdatedAt = columnNames.includes('updated_at');
     
@@ -164,7 +164,7 @@ async function migrateProcessingJobs(db: any) {
   }
 }
 
-async function cleanupLegacyData(db: any) {
+async function cleanupLegacyData(db: import('sqlite').Database) {
   try {
     console.log('  Removing orphaned data...');
     
@@ -219,7 +219,7 @@ async function validateMigration() {
     }
     
     // Test basic operations
-    const stats = await dbManager.getStatistics();
+    await dbManager.getStatistics();
     console.log('  ✅ Migration validation successful');
     
   } catch (error) {
@@ -277,8 +277,8 @@ async function main() {
   try {
     await dbManager.backupDatabase(backupFile);
     console.log('✅ Backup created successfully');
-  } catch (error: any) {
-    console.warn('⚠️  Could not create backup (database may not exist yet):', error?.message || error);
+  } catch (error: unknown) {
+    console.warn('⚠️  Could not create backup (database may not exist yet):', error instanceof Error ? error.message : String(error));
   }
   
   // Run migration

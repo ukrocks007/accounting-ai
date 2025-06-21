@@ -1,195 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import path from "path";
 import fs from "fs";
-import { jsonrepair } from "jsonrepair";
-import { isUnexpected } from "@azure-rest/ai-inference";
-import { createModelClient, getModelRequestParams } from "../../../utils/modelUtils";
-import { processDocumentForBackgroundProcessing } from "../../../utils/documentProcessor";
-import * as XLSX from 'xlsx';
-/* load 'fs' for readFile and writeFile support */
-XLSX.set_fs(fs);
-import * as Papa from 'papaparse';
-import pdfParse from 'pdf-parse';
-
-interface ProcessedFileData {
-  text?: string;
-  csvData?: any[];
-  error?: string;
-}
-
-async function processFileByType(filepath: string, fileExtension: string): Promise<ProcessedFileData> {
-  try {
-    switch (fileExtension.toLowerCase()) {
-      case '.pdf':
-        return await processPDFFile(filepath);
-      case '.csv':
-        return await processCSVFile(filepath);
-      case '.xlsx':
-      case '.xls':
-        return await processExcelFile(filepath);
-      default:
-        return { error: `Unsupported file type: ${fileExtension}` };
-    }
-  } catch (error) {
-    return { error: `Error processing ${fileExtension} file: ${error instanceof Error ? error.message : 'Unknown error'}` };
-  }
-}
-
-async function processPDFFile(filepath: string): Promise<ProcessedFileData> {
-  try {
-    const fileBuffer = fs.readFileSync(filepath);
-    const pdfData = await pdfParse(fileBuffer);
-    return { text: pdfData.text };
-  } catch (error) {
-    console.error('PDF processing error:', error);
-    return { error: `Failed to process PDF: ${error instanceof Error ? error.message : 'Unknown error'}` };
-  }
-}
-
-async function processCSVFile(filepath: string): Promise<ProcessedFileData> {
-  const fileContent = fs.readFileSync(filepath, 'utf8');
-  return new Promise((resolve) => {
-    Papa.parse(fileContent, {
-      header: true,
-      complete: (results) => {
-        resolve({ csvData: results.data });
-      },
-      error: (error: any) => {
-        resolve({ error: `CSV parsing error: ${error.message}` });
-      }
-    });
-  });
-}
-
-async function processExcelFile(filepath: string): Promise<ProcessedFileData> {
-  const workbook = XLSX.readFile(filepath);
-  const sheetName = workbook.SheetNames[0];
-  const worksheet = workbook.Sheets[sheetName];
-  const csvData = XLSX.utils.sheet_to_json(worksheet);
-  return { csvData };
-}
-
-async function processFileWithLLM(filepath: string, fileExtension: string, filename: string) {
-  // First, process the file based on its type to extract structured data
-  const processedData = await processFileByType(filepath, fileExtension);
-  
-  if (processedData.error) {
-    throw new Error(processedData.error);
-  }
-
-  // Get model client and parameters for upload processing
-  const client = createModelClient('upload');
-  const modelParams = getModelRequestParams('upload');
-
-  let contentToProcess = '';
-  let ragProcessed = false;
-  
-  if (processedData.csvData) {
-    // For structured data (CSV, Excel), convert to a readable format for the LLM
-    contentToProcess = JSON.stringify(processedData.csvData, null, 2);
-  } else if (processedData.text) {
-    // For PDF, use the extracted text
-    contentToProcess = processedData.text;
-    
-    // Check if text is large and should be processed with background processing
-    if (contentToProcess.length > 4096) {
-      try {
-        const ragResult = await processDocumentForBackgroundProcessing(
-          contentToProcess,
-          filename,
-          fileExtension
-        );
-        
-        if (ragResult.stored) {
-          console.log(`Document ${filename} stored for background processing with ${ragResult.chunkCount} chunks`);
-          ragProcessed = true;
-          
-          // For large documents, truncate the content sent to LLM but still process what we can
-          contentToProcess = contentToProcess.substring(0, 4000) + "\n\n[Document is large and has been stored for background processing. Processing first 4000 characters for immediate extraction.]";
-        }
-      } catch (error) {
-        console.error('Background processing setup failed, continuing with truncated content:', error);
-        contentToProcess = contentToProcess.substring(0, 4000) + "\n\n[Document truncated due to size]";
-      }
-    }
-  } else {
-    // Fallback: read file as base64 (for backwards compatibility)
-    const fileBuffer = fs.readFileSync(filepath);
-    contentToProcess = fileBuffer.toString("base64");
-  }
-
-  const response = await client.path("/chat/completions").post({
-    body: {
-      messages: [
-        {
-          role: "system",
-          content: `You are a helpful assistant. Process the uploaded financial statement file and extract rows of transactions. The file can be in various formats (CSV, Excel, PDF).
-
-For structured data (CSV/Excel), you'll receive JSON data. For PDF, you'll receive extracted text. For other formats, you'll receive base64 encoded data.
-
-Make sure you only return the transactions in JSON format and nothing else. Look for columns that represent:
-- Date (various formats like MM/DD/YYYY, DD/MM/YYYY, YYYY-MM-DD)
-- Description/Transaction details/Memo
-- Amount (positive or negative numbers, or separate debit/credit columns)
-- Transaction type (debit/credit, or infer from amount sign)
-
-In case you are not able to give a response, return an empty array. In case of overflow, return as many rows as you can but make sure to return a valid JSON format.
-
-The return JSON looks like this:
-{
-  "overflow": true | false,
-  "rows": [
-    {
-      "date": "2023-01-01",
-      "description": "Sample transaction",
-      "amount": 100.0,
-      "type": "credit" | "debit"
-    }
-  ]
-}
-
-Important: 
-- Convert all dates to YYYY-MM-DD format
-- Ensure amounts are positive numbers
-- Set type as "debit" for expenses/withdrawals and "credit" for income/deposits
-- Clean up descriptions to remove extra spaces and characters`,
-        },
-        {
-          role: "user",
-          content: contentToProcess,
-        },
-      ],
-      ...modelParams,
-    },
-  });
-
-  if (isUnexpected(response)) {
-    throw response.body.error;
-  }
-
-  const result = response.body.choices[0].message.content;
-
-  try {
-    const repairedJson = jsonrepair(result || "");
-    const parsedResult = JSON.parse(repairedJson);
-
-    if ((parsedResult?.rows || []).length) {
-      const lastRow = parsedResult.rows[parsedResult.rows.length - 1];
-      if (
-        lastRow.date &&
-        lastRow.description &&
-        typeof lastRow.amount === 'number'
-      ) {
-        return { rows: parsedResult.rows, ragProcessed };
-      } else {
-        return { rows: parsedResult.rows.slice(0, -1), ragProcessed }; // Remove the last row if it doesn't have valid data
-      }
-    }
-    return { rows: [], ragProcessed };
-  } catch (error) {
-    throw new Error("Failed to parse or repair JSON response");
-  }
-}
+import { processFileWithLLM } from "../../../lib/upload/llm-processor";
 
 export async function POST(request: NextRequest) {
   try {
@@ -197,53 +9,84 @@ export async function POST(request: NextRequest) {
     const file = formData.get("file") as File;
 
     if (!file) {
-      return NextResponse.json({ error: "No file uploaded." }, { status: 400 });
+      return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
     }
 
-    const uploadDir = path.join(process.cwd(), "uploads");
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
+    // Check file size (50MB limit)
+    const maxSize = 50 * 1024 * 1024;
+    if (file.size > maxSize) {
+      return NextResponse.json(
+        { error: "File size exceeds 50MB limit" },
+        { status: 400 }
+      );
     }
 
-    const filename = `${Date.now()}-${file.name}`;
-    const filepath = path.join(uploadDir, filename);
-    const fileExtension = path.extname(file.name);
+    // Check file type
+    const allowedTypes = ['.pdf', '.csv', '.xlsx', '.xls'];
+    const fileExtension = path.extname(file.name).toLowerCase();
+    
+    if (!allowedTypes.includes(fileExtension)) {
+      return NextResponse.json(
+        { error: `Unsupported file type. Allowed: ${allowedTypes.join(', ')}` },
+        { status: 400 }
+      );
+    }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    // Create uploads directory if it doesn't exist
+    const uploadsDir = path.join(process.cwd(), "uploads");
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
 
+    // Save file
+    const timestamp = Date.now();
+    const filename = `${timestamp}-${file.name}`;
+    const filepath = path.join(uploadsDir, filename);
+
+    const buffer = Buffer.from(await file.arrayBuffer());
     fs.writeFileSync(filepath, buffer);
 
-    const result = await processFileWithLLM(filepath, fileExtension, filename);
-    const { rows, ragProcessed } = result;
+    try {
+      // Process file with LLM
+      const result = await processFileWithLLM(filepath, fileExtension, filename);
 
-    // Return extracted data for review instead of saving immediately
-    return NextResponse.json({
-      message: ragProcessed 
-        ? "File processed successfully. Large document has been stored for RAG retrieval and queued for background processing. Transactions will be automatically extracted and saved to the database. Please review the extracted data from the first 4000 characters." 
-        : "File processed successfully. Please review the extracted data.",
-      file: {
-        filename,
-        originalname: file.name,
-        size: file.size,
-        path: filepath,
-      },
-      extractedData: rows,
-      ragProcessed,
-      backgroundProcessing: ragProcessed ? {
-        enabled: true,
-        message: "Document queued for background transaction extraction",
-        checkStatusEndpoint: "/api/background-process?action=status"
-      } : {
-        enabled: false,
-        message: "Document too small for background processing"
+      return NextResponse.json({
+        success: true,
+        file: {
+          filename: filename,
+          originalName: file.name,
+          size: file.size,
+          type: fileExtension,
+        },
+        ...result,
+      });
+    } catch (processingError) {
+      console.error("File processing error:", processingError);
+      
+      // Clean up uploaded file on processing error
+      if (fs.existsSync(filepath)) {
+        fs.unlinkSync(filepath);
       }
-    });
-  } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
+
+      return NextResponse.json(
+        {
+          error: `Failed to process file: ${
+            processingError instanceof Error
+              ? processingError.message
+              : "Unknown processing error"
+          }`,
+        },
+        { status: 500 }
+      );
+    }
+  } catch (error) {
+    console.error("Upload error:", error);
     return NextResponse.json(
-      { error: errorMessage || "File upload failed." },
+      {
+        error: `Upload failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+      },
       { status: 500 }
     );
   }

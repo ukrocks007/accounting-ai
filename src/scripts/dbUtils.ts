@@ -6,7 +6,7 @@
  * Provides command-line utilities for database operations
  */
 
-import { dbManager } from '../lib/dbManager';
+import { dbManager, JobStatus } from '../lib/dbManager';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -158,7 +158,7 @@ async function listJobs(statusFilter?: string) {
   }
   
   const jobs = await dbManager.getProcessingJobs({ 
-    status: statusFilter as any 
+    status: statusFilter as JobStatus 
   });
   
   console.log(`📋 Processing Jobs${statusFilter ? ` (${statusFilter})` : ''}:`);

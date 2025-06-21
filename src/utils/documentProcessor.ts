@@ -130,7 +130,7 @@ export async function searchRelevantContent(
 ): Promise<Array<{
   text: string;
   score: number;
-  metadata: any;
+  metadata: Record<string, unknown>;
 }>> {
   try {
     // This is a simplified search that looks for keyword matches

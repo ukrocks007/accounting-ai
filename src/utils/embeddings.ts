@@ -4,6 +4,29 @@ import { AzureKeyCredential } from "@azure/core-auth";
 import { isUnexpected } from "@azure-rest/ai-inference";
 import { getActiveModelConfig } from '../constants/models';
 
+// Types for better type safety
+interface EmbeddingMetadata {
+  filename: string;
+  chunkIndex: number;
+  totalChunks: number;
+  fileType: string;
+  uploadDate: string;
+  text: string;
+  [key: string]: string | number; // Index signature for Pinecone compatibility
+}
+
+interface EmbeddingVector {
+  id: string;
+  values: number[];
+  metadata: EmbeddingMetadata;
+}
+
+interface SearchResult {
+  text: string;
+  score: number;
+  metadata: EmbeddingMetadata;
+}
+
 // Cache for Pinecone client
 let pineconeClient: Pinecone | null = null;
 
@@ -35,9 +58,6 @@ export function getPineconeClient(): Pinecone {
 }
 
 const INDEX_NAME = process.env.PINECONE_INDEX_NAME || 'accounting-documents';
-// Note: Update this to a model available through your Azure AI Inference endpoint
-// Examples: 'text-embedding-ada-002', 'text-embedding-3-small', etc.
-const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL || 'text-embedding-3-small';
 const CHUNK_SIZE = 4000; // Slightly smaller than 4096 to allow for overlap
 const CHUNK_OVERLAP = 200;
 
@@ -125,11 +145,7 @@ export function splitTextIntoChunks(text: string, filename: string, fileType: st
 /**
  * Generate embeddings for text chunks
  */
-export async function generateEmbeddings(chunks: DocumentChunk[]): Promise<Array<{
-  id: string;
-  values: number[];
-  metadata: any;
-}>> {
+export async function generateEmbeddings(chunks: DocumentChunk[]): Promise<EmbeddingVector[]> {
   const config = getActiveModelConfig('embedding');
   console.log('Embedding config:', {
     model: config.model,
@@ -178,11 +194,7 @@ export async function generateEmbeddings(chunks: DocumentChunk[]): Promise<Array
 /**
  * Store embeddings in Pinecone
  */
-export async function storeEmbeddings(embeddings: Array<{
-  id: string;
-  values: number[];
-  metadata: any;
-}>): Promise<void> {
+export async function storeEmbeddings(embeddings: EmbeddingVector[]): Promise<void> {
   try {
     const pinecone = getPineconeClient();
     const index = pinecone.index(INDEX_NAME);
@@ -204,11 +216,7 @@ export async function storeEmbeddings(embeddings: Array<{
 /**
  * Search for relevant chunks using query embedding
  */
-export async function searchRelevantChunks(query: string, topK: number = 5): Promise<Array<{
-  text: string;
-  score: number;
-  metadata: any;
-}>> {
+export async function searchRelevantChunks(query: string, topK: number = 5): Promise<SearchResult[]> {
   try {
     const pinecone = getPineconeClient();
     
@@ -234,10 +242,10 @@ export async function searchRelevantChunks(query: string, topK: number = 5): Pro
       includeMetadata: true,
     });
     
-    return searchResults.matches?.map((match: any) => ({
-      text: match.metadata?.text as string,
+    return searchResults.matches?.map((match) => ({
+      text: (match.metadata as EmbeddingMetadata)?.text || '',
       score: match.score || 0,
-      metadata: match.metadata,
+      metadata: match.metadata as EmbeddingMetadata,
     })) || [];
   } catch (error) {
     console.error('Error searching relevant chunks:', error);

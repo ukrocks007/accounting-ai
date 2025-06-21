@@ -4,11 +4,11 @@ import { isUnexpected } from "@azure-rest/ai-inference";
 import { jsonrepair } from "jsonrepair";
 import { dbManager, StatementRow, ProcessingJob as DBProcessingJob } from '../lib/dbManager';
 
-// Interface for transaction data (alias for StatementRow)
-interface TransactionRow extends StatementRow {}
+// Type alias for transaction data
+type TransactionRow = StatementRow;
 
-// Interface for processing job (alias for imported type)
-interface ProcessingJob extends DBProcessingJob {}
+// Type alias for processing job
+type ProcessingJob = DBProcessingJob;
 
 /**
  * Add a processing job to the queue
@@ -60,7 +60,7 @@ async function updateJobStatus(
  * Extract transactions from document chunks using LLM
  */
 async function extractTransactionsFromChunks(
-  chunks: Array<{ text: string; score: number; metadata: any }>
+  chunks: Array<{ text: string; score: number; metadata: Record<string, unknown> }>
 ): Promise<TransactionRow[]> {
   // Combine all chunk texts into a single document
   const combinedText = chunks
@@ -127,10 +127,10 @@ Important:
     if (parsedResult?.rows && Array.isArray(parsedResult.rows)) {
       // Validate and clean up the extracted transactions
       return parsedResult.rows
-        .filter((row: any) => 
+        .filter((row: { date?: unknown; description?: unknown; amount?: unknown }) => 
           row.date && row.description && typeof row.amount === 'number'
         )
-        .map((row: any) => ({
+        .map((row: { date: string; description: string; amount: number; type?: string }) => ({
           ...row,
           type: row.type || 'debit' // Default to 'debit' if type is missing
         }));
@@ -327,13 +327,13 @@ export function startBackgroundProcessor(intervalMinutes: number = 5): NodeJS.Ti
   console.log(`Starting background processor with ${intervalMinutes} minute intervals`);
   
   // Run immediately
-  processAllPendingJobsWithRetry().catch((error: any) => {
+  processAllPendingJobsWithRetry().catch((error: Error) => {
     console.error('Initial background processing failed:', error);
   });
   
   // Set up interval
   return setInterval(() => {
-    processAllPendingJobsWithRetry().catch((error: any) => {
+    processAllPendingJobsWithRetry().catch((error: Error) => {
       console.error('Background processing failed:', error);
     });
   }, intervalMinutes * 60 * 1000);

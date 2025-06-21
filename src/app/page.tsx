@@ -10,9 +10,9 @@ interface ChatMessage {
   content: string;
   timestamp: Date;
   data?: {
-    transactions?: any[]; // More flexible to handle any transaction structure
+    transactions?: Record<string, unknown>[]; // More flexible to handle any transaction structure
     query?: string;
-    summary?: any;
+    summary?: Record<string, unknown>;
   };
 }
 
@@ -22,19 +22,19 @@ interface StatementRow {
   description?: string;
   amount?: number;
   type?: "credit" | "debit";
-  [key: string]: any; // Allow any additional properties
+  [key: string]: unknown; // Allow any additional properties
 }
 
-const TransactionTable = ({ transactions }: { transactions: any[] }) => {
+const TransactionTable = ({ transactions }: { transactions: Record<string, unknown>[] }) => {
   if (!transactions || transactions.length === 0) return null;
 
   // Dynamically determine columns from the first transaction
   const allColumns = Object.keys(transactions[0]);
-  
+
   // Define preferred column order and hidden columns
   const columnPriority = ['id', 'date', 'created_at', 'description', 'amount', 'total', 'sum', 'type', 'source'];
   const hiddenColumns = ['created_at', 'updated_at']; // Hide these columns by default
-  
+
   // Filter out hidden columns and sort by priority
   const visibleColumns = allColumns
     .filter(col => !hiddenColumns.includes(col))
@@ -46,7 +46,7 @@ const TransactionTable = ({ transactions }: { transactions: any[] }) => {
       if (bPriority === -1) return -1;
       return aPriority - bPriority;
     });
-  
+
   // Helper function to format column names for display
   const formatColumnName = (key: string): string => {
     return key
@@ -56,7 +56,7 @@ const TransactionTable = ({ transactions }: { transactions: any[] }) => {
   };
 
   // Helper function to format cell values
-  const formatCellValue = (key: string, value: any): React.ReactNode => {
+  const formatCellValue = (key: string, value: unknown): React.ReactNode => {
     if (value === null || value === undefined) {
       return <span className="text-gray-400">-</span>;
     }
@@ -64,7 +64,7 @@ const TransactionTable = ({ transactions }: { transactions: any[] }) => {
     // Handle date formatting
     if (key.toLowerCase().includes('date') || key.toLowerCase().includes('created_at') || key.toLowerCase().includes('updated_at')) {
       try {
-        return new Date(value).toLocaleDateString();
+        return new Date(String(value)).toLocaleDateString();
       } catch {
         return String(value);
       }
@@ -72,20 +72,19 @@ const TransactionTable = ({ transactions }: { transactions: any[] }) => {
 
     // Handle amount formatting with color coding
     if (key.toLowerCase().includes('amount') || key.toLowerCase().includes('total') || key.toLowerCase().includes('sum')) {
-      const numValue = parseFloat(value);
+      const numValue = parseFloat(String(value));
       if (!isNaN(numValue)) {
         // Try to determine if this is a credit or debit based on context
-        const row = transactions.find(t => t[key] === value);
-        const isCredit = row?.type === 'credit' || numValue > 0;
-        
+        const row = transactions.find(t => t[key] === value) as Record<string, unknown> | undefined;
+        const rowType = row?.type as string | undefined;
+
         return (
-          <span className={`font-mono ${
-            key.toLowerCase().includes('amount') && row?.type 
-              ? (row.type === 'credit' ? 'text-green-600' : 'text-red-600')
+          <span className={`font-mono ${key.toLowerCase().includes('amount') && rowType
+              ? (rowType === 'credit' ? 'text-green-600' : 'text-red-600')
               : 'text-gray-800'
-          }`}>
-            {key.toLowerCase().includes('amount') && row?.type 
-              ? `${row.type === 'credit' ? '+' : '-'}$${Math.abs(numValue).toFixed(2)}`
+            }`}>
+            {key.toLowerCase().includes('amount') && rowType
+              ? `${rowType === 'credit' ? '+' : '-'}$${Math.abs(numValue).toFixed(2)}`
               : `$${Math.abs(numValue).toFixed(2)}`
             }
           </span>
@@ -96,11 +95,10 @@ const TransactionTable = ({ transactions }: { transactions: any[] }) => {
     // Handle type formatting with badges
     if (key.toLowerCase() === 'type' && (value === 'credit' || value === 'debit')) {
       return (
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-          value === 'credit' 
-            ? 'bg-green-100 text-green-800' 
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${value === 'credit'
+            ? 'bg-green-100 text-green-800'
             : 'bg-red-100 text-red-800'
-        }`}>
+          }`}>
           {value === 'credit' ? 'Credit' : 'Debit'}
         </span>
       );
@@ -127,9 +125,8 @@ const TransactionTable = ({ transactions }: { transactions: any[] }) => {
     // Handle boolean values
     if (typeof value === 'boolean') {
       return (
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-          value ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-        }`}>
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${value ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+          }`}>
           {value ? 'Yes' : 'No'}
         </span>
       );
@@ -145,7 +142,7 @@ const TransactionTable = ({ transactions }: { transactions: any[] }) => {
   };
 
   // Helper function to determine cell alignment
-  const getCellAlignment = (key: string, value: any): string => {
+  const getCellAlignment = (key: string, value: unknown): string => {
     if (key.toLowerCase().includes('amount') || key.toLowerCase().includes('total') || key.toLowerCase().includes('sum') || (typeof value === 'number' && !key.toLowerCase().includes('id'))) {
       return 'text-right';
     }
@@ -180,7 +177,7 @@ const TransactionTable = ({ transactions }: { transactions: any[] }) => {
         </thead>
         <tbody>
           {transactions.map((transaction, index) => (
-            <tr key={transaction.id || index} className="hover:bg-gray-50">
+            <tr key={(transaction.id as string | number) || index} className="hover:bg-gray-50">
               {visibleColumns.map((column) => (
                 <td key={column} className={`px-2 py-2 border-b text-gray-800 ${getCellAlignment(column, transaction[column])}`}>
                   {formatCellValue(column, transaction[column])}
@@ -259,7 +256,7 @@ export default function Home() {
           setExtractedData([]);
         } else {
           // Sanitize the extracted data to ensure all rows have valid type field
-          const sanitizedData = (result.extractedData || []).map((row: any) => ({
+          const sanitizedData = (result.extractedData || []).map((row: Record<string, unknown>) => ({
             ...row,
             type: row.type || 'debit' // Default to 'debit' if type is missing
           }));
@@ -271,7 +268,7 @@ export default function Home() {
       } else {
         setMessage(`Error: ${result.error}`);
       }
-    } catch (error) {
+    } catch {
       setMessage("File upload failed.");
     } finally {
       setIsUploading(false);
@@ -298,7 +295,7 @@ export default function Home() {
       } else {
         setMessage(`Error saving data: ${result.error}`);
       }
-    } catch (error) {
+    } catch {
       setMessage("Failed to save data.");
     } finally {
       setIsConfirming(false);
@@ -383,7 +380,7 @@ export default function Home() {
             : msg
         )
       );
-    } catch (error) {
+    } catch {
       // Replace loading message with error
       setChatHistory(prev =>
         prev.map(msg =>
@@ -510,13 +507,13 @@ export default function Home() {
                 <div className="bg-blue-50 rounded-lg p-4 max-w-md mx-auto">
                   <h3 className="font-semibold text-sm mb-2 text-blue-800">Example questions:</h3>
                   <ul className="text-xs text-blue-600 space-y-1 text-left">
-                    <li>• What's my total spending this month?</li>
+                    <li>• What&apos;s my total spending this month?</li>
                     <li>• Show me all income statements</li>
                     <li>• List all transactions above $100</li>
                     <li>• What are my largest expenses?</li>
                     <li>• Show me all credit transactions</li>
                     <li>• How much did I spend on groceries?</li>
-                    <li>• What's my average transaction amount?</li>
+                    <li>• What&apos;s my average transaction amount?</li>
                   </ul>
                 </div>
               </div>
@@ -524,8 +521,8 @@ export default function Home() {
               chatHistory.map((msg) => (
                 <div key={msg.id} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`${msg.type === 'user' ? 'max-w-xs lg:max-w-md' : 'max-w-full lg:max-w-4xl'} px-4 py-2 rounded-lg ${msg.type === 'user'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-800'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-800'
                     }`}>
                     <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                     {msg.type === 'assistant' && msg.data?.transactions && (
