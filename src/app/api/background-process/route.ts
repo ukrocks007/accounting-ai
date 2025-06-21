@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import sqlite3 from "sqlite3";
 import { open } from "sqlite";
-import { processAllPendingJobs } from "@/utils/backgroundProcessor";
+import { processAllPendingJobsWithRetry } from "@/utils/backgroundProcessor";
 
 async function openDatabase() {
   return await open({
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
       console.log('Manual background processing triggered');
       
       // Process in background (don't await to avoid timeout)
-      processAllPendingJobs().catch(error => {
+      processAllPendingJobsWithRetry().catch(error => {
         console.error('Manual background processing failed:', error);
       });
 
