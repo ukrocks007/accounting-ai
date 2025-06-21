@@ -58,7 +58,7 @@ export function getPineconeClient(): Pinecone {
 }
 
 const INDEX_NAME = process.env.PINECONE_INDEX_NAME || 'accounting-documents';
-const CHUNK_SIZE = 4000; // Slightly smaller than 4096 to allow for overlap
+const CHUNK_SIZE = 3000;
 const CHUNK_OVERLAP = 200;
 
 /**
