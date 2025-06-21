@@ -183,10 +183,17 @@ async function executeToolCall(toolName: string, parameters: any) {
         console.log(
           `SQL query executed successfully, returned ${results.length} rows`
         );
+        
+        // Check if this is a transaction query and format appropriately
+        const isTransactionQuery = parameters.query.toLowerCase().includes('select') && 
+                                   parameters.query.toLowerCase().includes('statements');
+        
         return {
           query: parameters.query,
           results: results,
           row_count: results.length,
+          is_transaction_data: isTransactionQuery,
+          formatted_results: isTransactionQuery ? results : undefined
         };
 
       case "get_data_summary":
@@ -269,6 +276,13 @@ export async function POST(request: NextRequest) {
         4. DO NOT repeat the same tool call - if you get results, use them to answer
 
         AFTER USING TOOLS: Always provide a final answer based on the tool results. Do not make additional tool calls unless you need different data.
+        
+        RESPONSE FORMATTING:
+        - When returning data lists, provide a brief summary in text (e.g., "Found 15 transactions:")
+        - The actual data will be displayed in a dynamic table format that adapts to any column structure
+        - The table automatically handles different data types (dates, amounts, types, etc.) with proper formatting
+        - Focus your text response on insights, summaries, and explanations rather than listing individual records
+        - You can return any SQL query results - the table will dynamically show all columns
 
         DATABASE STRUCTURE:
         - statements table: Contains transaction data (id, date, description, amount, type, source, created_at, updated_at)
@@ -317,6 +331,7 @@ export async function POST(request: NextRequest) {
     let maxIterations = 5; // Reduced to prevent infinite loops
     let currentIteration = 0;
     let lastToolCalls: string[] = []; // Track recent tool calls to detect loops
+    let extractedTransactions: any[] = []; // Track transaction data from tool calls
 
     while (currentIteration < maxIterations) {
       console.log(`Chat iteration ${currentIteration + 1}/${maxIterations}`);
@@ -393,6 +408,16 @@ export async function POST(request: NextRequest) {
             const toolResult = await executeToolCall(toolName, parameters);
             console.log(`Tool ${toolName} result:`, toolResult);
 
+            // Extract transaction data if this was a SQL query for statements
+            if (toolName === 'execute_sql_query' && 
+                typeof toolResult === 'object' && 
+                toolResult !== null && 
+                'is_transaction_data' in toolResult && 
+                toolResult.is_transaction_data &&
+                'results' in toolResult) {
+              extractedTransactions = toolResult.results as any[];
+            }
+
             // Format the tool result more clearly for the LLM
             const formattedResult = {
               tool_name: toolName,
@@ -437,10 +462,21 @@ export async function POST(request: NextRequest) {
       } else {
         // No more tool calls, we have the final answer
         console.log("Final answer received:", assistantMessage.content);
-        return NextResponse.json({
+        
+        // Prepare response data
+        const responseData: any = {
           answer: assistantMessage.content,
           iterations: currentIteration + 1,
-        });
+        };
+
+        // Include structured data if we have transaction data
+        if (extractedTransactions.length > 0) {
+          responseData.data = {
+            transactions: extractedTransactions
+          };
+        }
+
+        return NextResponse.json(responseData);
       }
     }
 
