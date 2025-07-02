@@ -3,6 +3,27 @@ import { generateCompletion } from './modelUtils';
 import { jsonrepair } from "jsonrepair";
 import { dbManager, StatementRow, ProcessingJob as DBProcessingJob } from '../lib/dbManager';
 
+// Import SSE broadcasting functions
+let broadcastJobUpdate: ((filename: string, jobData: any) => void) | null = null;
+let broadcastAdminUpdate: (() => void) | null = null;
+let broadcastBackgroundProcessUpdate: ((filename?: string, jobData?: any) => void) | null = null;
+
+// Dynamically import SSE functions to avoid circular dependencies
+async function initSSEBroadcasting() {
+  try {
+    const sseModule = await import('../app/api/sse/route');
+    broadcastJobUpdate = sseModule.broadcastJobUpdate;
+    
+    const adminSSEModule = await import('../app/api/sse/admin/route');
+    broadcastAdminUpdate = adminSSEModule.broadcastAdminUpdate;
+    
+    const backgroundProcessModule = await import('../app/api/background-process/route');
+    broadcastBackgroundProcessUpdate = backgroundProcessModule.broadcastBackgroundProcessUpdate;
+  } catch (error) {
+    console.log('SSE modules not available, continuing without real-time updates');
+  }
+}
+
 // Type alias for transaction data
 type TransactionRow = StatementRow;
 
@@ -35,7 +56,7 @@ async function getPendingJobs(): Promise<ProcessingJob[]> {
 }
 
 /**
- * Update job status with retry handling
+ * Update job status with retry handling and SSE broadcasting
  */
 async function updateJobStatus(
   filename: string,
@@ -47,12 +68,57 @@ async function updateJobStatus(
     const retrySuccess = await dbManager.retryProcessingJob(filename);
     if (retrySuccess) {
       console.log(`Job ${filename} automatically queued for retry`);
+      
+      // Broadcast retry update
+      if (broadcastJobUpdate) {
+        const jobData = await dbManager.getProcessingJobs({ filename });
+        if (jobData.length > 0) {
+          broadcastJobUpdate(filename, jobData[0]);
+        }
+      }
+      if (broadcastAdminUpdate) {
+        broadcastAdminUpdate();
+      }
+      
       return; // Don't mark as failed, it's been reset to pending
     }
   }
   
   // If not retrying or if it's not a failure, update normally
   await dbManager.updateProcessingJobStatus(filename, status, errorMessage);
+  
+  // Broadcast status update via SSE
+  if (broadcastJobUpdate) {
+    try {
+      const jobData = await dbManager.getProcessingJobs({ filename });
+      if (jobData.length > 0) {
+        broadcastJobUpdate(filename, jobData[0]);
+      }
+    } catch (error) {
+      console.error('Failed to broadcast job update:', error);
+    }
+  }
+  
+  // Broadcast to background process SSE connections
+  if (broadcastBackgroundProcessUpdate) {
+    try {
+      const jobData = await dbManager.getProcessingJobs({ filename });
+      if (jobData.length > 0) {
+        broadcastBackgroundProcessUpdate(filename, jobData[0]);
+      }
+    } catch (error) {
+      console.error('Failed to broadcast background process update:', error);
+    }
+  }
+  
+  // Broadcast admin update
+  if (broadcastAdminUpdate) {
+    try {
+      broadcastAdminUpdate();
+    } catch (error) {
+      console.error('Failed to broadcast admin update:', error);
+    }
+  }
 }
 
 /**
@@ -83,7 +149,6 @@ In case you are not able to give a response, return an empty array. Extract as m
 
 The return JSON looks like this:
 {
-  "overflow": false,
   "rows": [
     {
       "date": "2023-01-01",
@@ -99,7 +164,8 @@ Important:
 - Ensure amounts are positive numbers
 - Set type as "debit" for expenses/withdrawals and "credit" for income/deposits
 - Clean up descriptions to remove extra spaces and characters
-- Only extract clear, valid transactions - skip headers, summaries, or unclear entries`,
+- Only extract clear, valid transactions - skip headers, summaries, or unclear entries
+- Make sure to return valid JSON format exactly as mentioned, no additional text or explanations`,
         },
         {
           role: "user" as const,
@@ -114,14 +180,16 @@ Important:
         const repairedJson = jsonrepair(result || "");
         const parsedResult = JSON.parse(repairedJson);
 
-        if (parsedResult?.rows && Array.isArray(parsedResult.rows)) {
+        if ((parsedResult?.rows && Array.isArray(parsedResult.rows)) || (Array.isArray(parsedResult) && parsedResult.length > 0)) {
           // Validate and clean up the extracted transactions
-          const chunkTransactions = parsedResult.rows
-            .filter((row: { date?: unknown; description?: unknown; amount?: unknown }) => 
+          let chunkTransactions = parsedResult.rows || parsedResult;
+          chunkTransactions = chunkTransactions
+            .filter((row: { date?: unknown; description?: unknown; amount?: unknown }) =>
               row.date && row.description && typeof row.amount === 'number'
             )
             .map((row: { date: string; description: string; amount: number; type?: string }) => ({
               ...row,
+              amount: Math.abs(row.amount), // Ensure amount is positive
               type: row.type || 'debit' // Default to 'debit' if type is missing
             }));
           
@@ -234,6 +302,11 @@ async function processJob(job: ProcessingJob): Promise<void> {
  * Process jobs with retry mechanism and exponential backoff
  */
 export async function processAllPendingJobsWithRetry(): Promise<void> {
+  // Initialize SSE broadcasting if not already done
+  if (!broadcastJobUpdate || !broadcastAdminUpdate) {
+    await initSSEBroadcasting();
+  }
+
   console.log('Starting background processing with retry mechanism...');
   
   try {

@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isUnexpected } from "@azure-rest/ai-inference";
-import {
-  createModelClient,
-  getModelRequestParams,
-} from "../../../utils/modelUtils";
+import { generateCompletion } from "../../../utils/modelUtils";
 import { getLLMFormattedTools } from "../../../lib/chat/tools";
 import { executeToolCall } from "../../../lib/chat/tool-executor";
 import { SYSTEM_PROMPT } from "../../../lib/chat/prompts";
+import type { ChatMessage } from "../../../utils/providers";
 
 interface ChatResponse {
   answer: string;
@@ -28,13 +25,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<ChatRespo
       );
     }
 
-    // Get model client and parameters for chat
-    const client = createModelClient("chat");
-    const modelParams = getModelRequestParams("chat");
-
     // Initial conversation with the LLM
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const messages: any[] = [
+    const messages: ChatMessage[] = [
       {
         role: "system",
         content: SYSTEM_PROMPT,
@@ -53,26 +45,22 @@ export async function POST(request: NextRequest): Promise<NextResponse<ChatRespo
     while (currentIteration < maxIterations) {
       console.log(`Chat iteration ${currentIteration + 1}/${maxIterations}`);
 
-      const response = await client.path("/chat/completions").post({
-        body: {
-          messages,
-          ...modelParams,
-          tools: getLLMFormattedTools(),
-          tool_choice: "auto",
-        },
+      const response = await generateCompletion(messages, "chat", {
+        tools: getLLMFormattedTools(),
+        tool_choice: "auto",
       });
 
-      if (isUnexpected(response)) {
-        throw new Error(`LLM API error: ${response.body.error}`);
-      }
-
-      const assistantMessage = response.body.choices[0].message;
+      const assistantMessage = response.choices[0].message;
       console.log(
         "Raw assistant message:",
         JSON.stringify(assistantMessage, null, 2)
       );
 
-      messages.push(assistantMessage);
+      messages.push({
+        role: "assistant",
+        content: assistantMessage.content || "",
+        ...(assistantMessage.tool_calls && { tool_calls: assistantMessage.tool_calls })
+      } as ChatMessage);
 
       // Check if the assistant wants to call a tool
       if (
@@ -80,8 +68,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ChatRespo
         assistantMessage.tool_calls.length > 0
       ) {
         const currentToolCallSignatures = assistantMessage.tool_calls.map(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (tc: any) =>
+          (tc) =>
             `${tc.function.name}:${JSON.stringify(tc.function.arguments)}`
         );
 
@@ -126,8 +113,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ChatRespo
                 'is_transaction_data' in toolResult && 
                 toolResult.is_transaction_data &&
                 'results' in toolResult) {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              extractedTransactions = toolResult.results as any[];
+              extractedTransactions = toolResult.results as Record<string, unknown>[];
             }
 
             // Format the tool result more clearly for the LLM

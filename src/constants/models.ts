@@ -18,19 +18,19 @@ export interface ModelConfig {
 export const MODEL_CONFIGS = {
   // Configuration for file upload processing
   UPLOAD_PROCESSOR: {
-    model: "meta/Llama-3.3-70B-Instruct",
+    model: "llama3:8b",
     temperature: 0.8,
     top_p: 0.1,
     max_tokens: 4096,
-    endpoint: "https://models.github.ai/inference",
-    credential: process.env["GITHUB_TOKEN"] || "",
-    provider: "github" as ProviderType,
-    streaming: true
+    endpoint: process.env.OLLAMA_ENDPOINT || "http://localhost:11434",
+    credential: "", // Ollama doesn't require credentials
+    provider: "ollama" as ProviderType,
+    streaming: false // Set to false for more reliable processing
   } as ModelConfig,
 
   // Configuration for chat conversations
   CHAT_ASSISTANT: {
-    model: "meta/Llama-3.3-70B-Instruct",
+    model: "openai/gpt-4.1",
     temperature: 0.1,
     max_tokens: 4096,
     endpoint: "https://models.github.ai/inference",
@@ -156,21 +156,31 @@ export const MODEL_CONFIGS = {
       streaming: true
     } as ModelConfig,
     
-    // Google Direct
+    // Google Gemini Models
     GEMINI: {
-      model: "gemini-pro",
+      model: "gemini-2.0-flash",
       temperature: 0.7,
-      max_tokens: 4096,
+      max_tokens: 8192,
       endpoint: "https://generativelanguage.googleapis.com/v1",
       credential: process.env["GOOGLE_API_KEY"] || "",
       provider: "google" as ProviderType,
       streaming: true
     } as ModelConfig,
 
-    GEMINI_2_0_FLASH: {
-      model: "gemini-2.0-flash-exp",
+    GEMINI_2_5_FLASH: {
+      model: "gemini-2.5-flash",
       temperature: 0.7,
-      max_tokens: 4096,
+      max_tokens: 8192,
+      endpoint: "https://generativelanguage.googleapis.com/v1",
+      credential: process.env["GOOGLE_API_KEY"] || "",
+      provider: "google" as ProviderType,
+      streaming: true
+    } as ModelConfig,
+
+    GEMINI_2_5_PRO: {
+      model: "gemini-2.5-pro",
+      temperature: 0.7,
+      max_tokens: 8192,
       endpoint: "https://generativelanguage.googleapis.com/v1",
       credential: process.env["GOOGLE_API_KEY"] || "",
       provider: "google" as ProviderType,

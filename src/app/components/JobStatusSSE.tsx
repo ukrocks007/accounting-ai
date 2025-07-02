@@ -1,7 +1,7 @@
 import { useState, useMemo, memo } from "react";
 import { Info, X, CheckCircle, AlertTriangle, Loader2, Wifi, WifiOff } from "lucide-react";
 import { useJobPolling } from "../hooks/useJobPolling";
-import { useBackgroundProcessSSE } from "../hooks/useBackgroundProcessSSE";
+import { useJobSSE } from "../hooks/useJobSSE";
 
 // Helper function to capitalize first letter of a string
 const capitalize = (str: string = "") => {
@@ -14,29 +14,31 @@ const capitalize = (str: string = "") => {
 };
 
 interface JobStatusProps {
-    checkStatusEndpoint: string;
+    checkStatusEndpoint?: string; // Optional for backward compatibility
     filename: string;
     method?: 'polling' | 'sse'; // Choose between polling and SSE
 }
 
-function JobStatus({ checkStatusEndpoint, filename, method = 'sse' }: JobStatusProps) {
+function JobStatusComponent({ checkStatusEndpoint, filename, method = 'sse' }: JobStatusProps) {
     const [visible, setVisible] = useState(true);
     
     // Use SSE by default, fallback to polling if specified or if SSE fails
-    const sseResult = useBackgroundProcessSSE({
+    const sseResult = useJobSSE({
         filename,
-        enabled: visible && method === 'sse',
-        pollingFallback: true
+        enabled: visible && method === 'sse'
     });
     
     const pollingResult = useJobPolling({
-        checkStatusEndpoint,
+        checkStatusEndpoint: checkStatusEndpoint || "/api/background-process?action=status",
         filename,
-        enablePolling: visible && method === 'polling'
+        enablePolling: visible && (method === 'polling' || (method === 'sse' && sseResult.connectionStatus === 'error'))
     });
 
-    // Use SSE results by default, fallback to polling if SSE is disabled
-    const { job, error, loading } = method === 'sse' ? sseResult : pollingResult;
+    // Use SSE results by default, fallback to polling if SSE is disabled or has errors
+    const { job, error, loading } = method === 'sse' && sseResult.connectionStatus !== 'error' 
+        ? sseResult 
+        : pollingResult;
+    
     const connectionStatus = method === 'sse' ? sseResult.connectionStatus : 'connected';
 
     // Memoize status styling to prevent recalculation on every render
@@ -118,6 +120,7 @@ function JobStatus({ checkStatusEndpoint, filename, method = 'sse' }: JobStatusP
                     'Real-time updates'
                 ) : 'Polling updates'}
             </div>
+            
             <div className="px-1 py-1">
                 {loading ? (
                     <div className="text-gray-500 animate-pulse flex items-center gap-2">
@@ -172,4 +175,6 @@ function JobStatus({ checkStatusEndpoint, filename, method = 'sse' }: JobStatusP
 }
 
 // Memoize the component to prevent unnecessary re-renders when parent re-renders
-export default memo(JobStatus);
+const JobStatus = memo(JobStatusComponent);
+
+export default JobStatus;

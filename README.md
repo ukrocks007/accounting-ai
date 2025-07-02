@@ -11,12 +11,19 @@ An intelligent accounting assistant powered by AI that helps you analyze financi
 - 🧠 **RAG (Retrieval-Augmented Generation)**: Intelligent search through large document content
 - 🛡️ **Secure Database**: SQLite database with read-only query protection
 - 🎨 **Modern UI**: Clean, responsive interface built with Tailwind CSS
+- 🤖 **Multi-Model AI Support**: OpenAI, GitHub Models, Ollama, Anthropic, and **Google Gemini**
 
 ## Tech Stack
 
 - **Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS
 - **Backend**: Next.js API Routes, SQLite Database
-- **AI Integration**: Azure AI Inference API, OpenAI Embeddings
+- **AI Integration**: 
+  - Azure AI Inference API
+  - OpenAI GPT models
+  - **Google Gemini (Latest)**
+  - GitHub Models
+  - Ollama (Local models)
+  - Anthropic Claude
 - **Vector Database**: Pinecone for RAG functionality
 - **File Processing**: XLSX for Excel files, PDF parsing
 - **Database**: SQLite3 with sqlite package
@@ -53,15 +60,35 @@ Create a `.env` file in the root directory:
 GITHUB_TOKEN=your_github_pat_token
 ```
 
+**Google Gemini Setup (Recommended):**
+```env
+# For Google Gemini AI (Latest and most capable)
+GOOGLE_API_KEY=your_google_ai_studio_api_key
+```
+
+**Alternative AI Providers (Optional):**
+```env
+# OpenAI (if you prefer OpenAI models)
+OPENAI_API_KEY=your_openai_api_key
+
+# Anthropic Claude (if you prefer Claude models)
+ANTHROPIC_API_KEY=your_anthropic_api_key
+
+# Ollama (for local models)
+OLLAMA_ENDPOINT=http://localhost:11434
+```
+
 **RAG Setup (Optional - for large document processing):**
 ```env
 # For RAG functionality with large documents
 PINECONE_API_KEY=your_pinecone_api_key
 PINECONE_INDEX_NAME=accounting-documents
-OPENAI_API_KEY=your_openai_api_key
 ```
 
-> **Note**: RAG features require additional setup. See [RAG_SETUP.md](./RAG_SETUP.md) for detailed instructions.
+> **Note**: 
+> - For **Gemini setup**, see [GEMINI_SETUP.md](./GEMINI_SETUP.md) for detailed configuration
+> - For **RAG features**, see [RAG_SETUP.md](./RAG_SETUP.md) for setup instructions
+> - For **Ollama local models**, see [OLLAMA_SETUP.md](./OLLAMA_SETUP.md)
 
 4. Run the development server:
 ```bash
@@ -75,6 +102,21 @@ bun dev
 ```
 
 5. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+### Testing Your Setup
+
+Test your AI configuration with these commands:
+
+```bash
+# Test Gemini AI (recommended)
+npm run test-gemini
+
+# Test Ollama (if using local models)
+npm run test-ollama
+
+# Test RAG functionality
+npm run test-rag
+```
 
 ## Usage
 

@@ -37,7 +37,8 @@ export async function processFileWithLLM(filepath: string, fileExtension: string
             ragProcessed: true,
             backgroundProcessing: {
               enabled: true,
-              checkStatusEndpoint: "/api/background-process?action=status"
+              checkStatusEndpoint: "/api/background-process?action=status",
+              sseEndpoint: "/api/sse"
             }
           };
         }
@@ -111,7 +112,8 @@ export async function processFileWithLLM(filepath: string, fileExtension: string
       ragProcessed,
       backgroundProcessing: ragProcessed ? {
         enabled: true,
-        checkStatusEndpoint: "/api/background-process?action=status"
+        checkStatusEndpoint: "/api/background-process?action=status",
+        sseEndpoint: "/api/sse"
       } : undefined
     };
   } catch (parseError) {
@@ -121,7 +123,8 @@ export async function processFileWithLLM(filepath: string, fileExtension: string
       ragProcessed,
       backgroundProcessing: ragProcessed ? {
         enabled: true,
-        checkStatusEndpoint: "/api/background-process?action=status"
+        checkStatusEndpoint: "/api/background-process?action=status",
+        sseEndpoint: "/api/sse"
       } : undefined
     };
   }

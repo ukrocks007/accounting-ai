@@ -160,13 +160,14 @@ export function getModelInfo(apiType: 'upload' | 'chat' | 'embedding') {
  */
 export async function generateCompletion(
   messages: ChatMessage[], 
-  apiType: 'upload' | 'chat' | 'embedding' = 'chat'
+  apiType: 'upload' | 'chat' | 'embedding' = 'chat',
+  options?: import('./providers').GenerateCompletionOptions
 ): Promise<ChatResponse> {
   const client = createUniversalClient(apiType);
   const config = getActiveModelConfig(apiType);
   
   try {
-    return await client.generateCompletion(messages, config);
+    return await client.generateCompletion(messages, config, options);
   } catch (error: unknown) {
     console.error(`Error generating completion with ${config.provider} provider:`, error);
     throw error;

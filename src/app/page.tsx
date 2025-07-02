@@ -418,7 +418,11 @@ export default function Home() {
       >
         {backgroundJob && (
           <div className="mr-4">
-            <JobStatus checkStatusEndpoint={backgroundJob.checkStatusEndpoint} filename={backgroundJob.filename} />
+            <JobStatus 
+              checkStatusEndpoint={backgroundJob.checkStatusEndpoint} 
+              filename={backgroundJob.filename} 
+              method="sse"
+            />
           </div>
         )}
       </Header>

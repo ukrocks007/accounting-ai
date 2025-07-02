@@ -51,6 +51,42 @@ export function Header({ title, description, children }: HeaderProps) {
       );
     }
     
+    // if (pathname !== '/admin/sse-demo') {
+    //   links.push(
+    //     <Link
+    //       key="sse-demo"
+    //       href="/admin/sse-demo"
+    //       className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+    //     >
+    //       SSE Demo
+    //     </Link>
+    //   );
+    // }
+    
+    // if (pathname !== '/admin/background-process-test') {
+    //   links.push(
+    //     <Link
+    //       key="bg-test"
+    //       href="/admin/background-process-test"
+    //       className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+    //     >
+    //       SSE Test
+    //     </Link>
+    //   );
+    // }
+    
+    // if (pathname !== '/admin/ollama') {
+    //   links.push(
+    //     <Link
+    //       key="ollama"
+    //       href="/admin/ollama"
+    //       className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium"
+    //     >
+    //       Ollama
+    //     </Link>
+    //   );
+    // }
+    
     return links;
   };
 

@@ -21,12 +21,15 @@
     "db:schema": "npm run db schema",
     "db:backup": "npm run db backup",
     "db:retry": "npm run db retry-failed",
-    "db:job-status": "npm run db job-status"
+    "db:job-status": "npm run db job-status",
+    "test-ollama": "node test-ollama.js",
+    "test-gemini": "npx ts-node --project tsconfig-scripts.json test-gemini.ts"
   },
   "dependencies": {
     "@azure-rest/ai-inference": "latest",
     "@azure/core-auth": "latest",
     "@azure/core-sse": "latest",
+    "@google/generative-ai": "^0.24.1",
     "@pinecone-database/pinecone": "^6.1.1",
     "@types/sqlite3": "^5.1.0",
     "csv-parser": "^3.2.0",

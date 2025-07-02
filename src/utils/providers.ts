@@ -11,7 +11,20 @@ interface AzureAIClientLike {
     post(options: { body: Record<string, unknown> }): Promise<{
       status: string;
       body: {
-        choices?: Array<{ message: { content: string } }>;
+        choices?: Array<{ 
+          message: { 
+            content: string | null; 
+            tool_calls?: Array<{
+              id: string;
+              type: 'function';
+              function: {
+                name: string;
+                arguments: string;
+              };
+            }>;
+          }; 
+          finish_reason?: string;
+        }>;
         data?: Array<{ embedding: number[] }>;
         error?: string;
       };
@@ -21,15 +34,27 @@ interface AzureAIClientLike {
 
 // Message types for better type safety
 export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
+  role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
+  tool_call_id?: string;
+  tool_calls?: ToolCall[];
+}
+
+export interface ToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
 }
 
 export interface ChatResponse {
   choices: Array<{
     message: {
       role: 'assistant';
-      content: string;
+      content: string | null;
+      tool_calls?: ToolCall[];
     };
     finish_reason: string;
   }>;
@@ -40,8 +65,26 @@ export interface ChatResponse {
   };
 }
 
+export interface LLMTool {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: string;
+      properties: Record<string, unknown>;
+      required: string[];
+    };
+  };
+}
+
+export interface GenerateCompletionOptions {
+  tools?: LLMTool[];
+  tool_choice?: 'auto' | 'none' | { type: 'function'; function: { name: string } };
+}
+
 export interface ProviderClient {
-  generateCompletion(messages: ChatMessage[], config: ModelConfig): Promise<ChatResponse>;
+  generateCompletion(messages: ChatMessage[], config: ModelConfig, options?: GenerateCompletionOptions): Promise<ChatResponse>;
   generateEmbedding?(text: string, config: ModelConfig): Promise<number[]>;
 }
 
@@ -55,20 +98,47 @@ export class GitHubProvider implements ProviderClient {
     this.client = ModelClient(config.endpoint, new AzureKeyCredential(config.credential));
   }
 
-  async generateCompletion(messages: ChatMessage[], config: ModelConfig): Promise<ChatResponse> {
+  async generateCompletion(messages: ChatMessage[], config: ModelConfig, options?: GenerateCompletionOptions): Promise<ChatResponse> {
     const client = this.client as AzureAIClientLike;
-    const response = await client.path("/chat/completions").post({
-      body: {
-        messages,
-        model: config.model,
-        temperature: config.temperature,
-        max_tokens: config.max_tokens,
-        ...(config.top_p && { top_p: config.top_p })
+    
+    const requestBody: Record<string, unknown> = {
+      messages,
+      model: config.model,
+      temperature: config.temperature,
+      max_tokens: config.max_tokens,
+      ...(config.top_p && { top_p: config.top_p })
+    };
+
+    // Add tool support
+    if (options?.tools) {
+      requestBody.tools = options.tools;
+      if (options.tool_choice) {
+        requestBody.tool_choice = options.tool_choice;
       }
+    }
+
+    const response = await client.path("/chat/completions").post({
+      body: requestBody
     });
 
     if (response.status !== "200") {
       throw new Error(`GitHub API error: ${response.body?.error || 'Unknown error'}`);
+    }
+
+    const choice = response.body.choices?.[0];
+    const message = choice?.message;
+
+    // Handle tool calls if present
+    let toolCalls: ToolCall[] | undefined;
+    if (message?.tool_calls) {
+      toolCalls = message.tool_calls.map((tc: any) => ({
+        id: tc.id,
+        type: 'function' as const,
+        function: {
+          name: tc.function.name,
+          arguments: tc.function.arguments
+        }
+      }));
     }
 
     // Ensure we return the correct format
@@ -76,9 +146,10 @@ export class GitHubProvider implements ProviderClient {
       choices: [{
         message: {
           role: 'assistant' as const,
-          content: response.body.choices?.[0]?.message?.content || ''
+          content: message?.content || null,
+          ...(toolCalls && { tool_calls: toolCalls })
         },
-        finish_reason: 'stop'
+        finish_reason: choice?.finish_reason || 'stop'
       }],
       usage: {
         prompt_tokens: 0,
@@ -117,7 +188,7 @@ export class OllamaProvider implements ProviderClient {
     this.baseUrl = `${url.protocol}//${url.host}`;
   }
 
-  async generateCompletion(messages: ChatMessage[], config: ModelConfig): Promise<ChatResponse> {
+  async generateCompletion(messages: ChatMessage[], config: ModelConfig, options?: GenerateCompletionOptions): Promise<ChatResponse> {
     // Convert messages to Ollama format
     const prompt = this.convertMessagesToPrompt(messages);
 
@@ -150,11 +221,12 @@ export class OllamaProvider implements ProviderClient {
     };
     
     // Convert Ollama response to OpenAI-like format
+    // Note: Ollama doesn't support tools natively, so we return basic response
     return {
       choices: [{
         message: {
           role: 'assistant' as const,
-          content: result.response || ''
+          content: result.response || null
         },
         finish_reason: result.done ? 'stop' : 'length'
       }],
@@ -213,20 +285,65 @@ export class OpenAIProvider implements ProviderClient {
     });
   }
 
-  async generateCompletion(messages: ChatMessage[], config: ModelConfig): Promise<ChatResponse> {
-    const response = await this.client.chat.completions.create({
+  async generateCompletion(messages: ChatMessage[], config: ModelConfig, options?: GenerateCompletionOptions): Promise<ChatResponse> {
+    // Convert our ChatMessage format to OpenAI format
+    const openAIMessages = messages.map(msg => {
+      if (msg.role === 'tool') {
+        return {
+          role: 'tool' as const,
+          content: msg.content,
+          tool_call_id: msg.tool_call_id!
+        };
+      } else if (msg.role === 'assistant' && msg.tool_calls) {
+        return {
+          role: 'assistant' as const,
+          content: msg.content,
+          tool_calls: msg.tool_calls
+        };
+      }
+      return {
+        role: msg.role as 'system' | 'user' | 'assistant',
+        content: msg.content
+      };
+    });
+
+    const requestParams: any = {
       model: config.model,
-      messages,
+      messages: openAIMessages,
       temperature: config.temperature,
       max_tokens: config.max_tokens,
       ...(config.top_p && { top_p: config.top_p })
-    });
+    };
+
+    // Add tool support
+    if (options?.tools) {
+      requestParams.tools = options.tools;
+      if (options.tool_choice) {
+        requestParams.tool_choice = options.tool_choice;
+      }
+    }
+
+    const response = await this.client.chat.completions.create(requestParams);
+
+    // Convert tool calls if present
+    let toolCalls: ToolCall[] | undefined;
+    if (response.choices[0]?.message?.tool_calls) {
+      toolCalls = response.choices[0].message.tool_calls.map(tc => ({
+        id: tc.id,
+        type: 'function' as const,
+        function: {
+          name: tc.function.name,
+          arguments: tc.function.arguments
+        }
+      }));
+    }
 
     return {
       choices: [{
         message: {
           role: 'assistant' as const,
-          content: response.choices[0]?.message?.content || ''
+          content: response.choices[0]?.message?.content || null,
+          ...(toolCalls && { tool_calls: toolCalls })
         },
         finish_reason: response.choices[0]?.finish_reason || 'stop'
       }],
@@ -260,7 +377,7 @@ export class AnthropicProvider implements ProviderClient {
     this.baseUrl = config.endpoint;
   }
 
-  async generateCompletion(messages: ChatMessage[], config: ModelConfig): Promise<ChatResponse> {
+  async generateCompletion(messages: ChatMessage[], config: ModelConfig, options?: GenerateCompletionOptions): Promise<ChatResponse> {
     // Convert OpenAI format to Anthropic format
     const systemMessage = messages.find(m => m.role === 'system');
     const userMessages = messages.filter(m => m.role !== 'system');
@@ -292,11 +409,12 @@ export class AnthropicProvider implements ProviderClient {
     };
     
     // Convert to OpenAI-like format
+    // Note: Anthropic doesn't support tools in the same way, so we return basic response
     return {
       choices: [{
         message: {
           role: 'assistant' as const,
-          content: result.content[0]?.text || ''
+          content: result.content[0]?.text || null
         },
         finish_reason: result.stop_reason || 'stop'
       }],
@@ -310,70 +428,153 @@ export class AnthropicProvider implements ProviderClient {
 }
 
 /**
- * Google Provider
+ * Google Provider using official Gemini SDK
  */
+import { GoogleGenerativeAI, GenerativeModel, GenerationConfig } from '@google/generative-ai';
+
 export class GoogleProvider implements ProviderClient {
-  private apiKey: string;
-  private baseUrl: string;
+  private genAI: GoogleGenerativeAI;
+  private model: GenerativeModel;
 
   constructor(config: ModelConfig) {
-    this.apiKey = config.credential;
-    this.baseUrl = config.endpoint;
+    this.genAI = new GoogleGenerativeAI(config.credential);
+    
+    const generationConfig: GenerationConfig = {
+      temperature: config.temperature,
+      maxOutputTokens: config.max_tokens,
+      ...(config.top_p && { topP: config.top_p })
+    };
+
+    this.model = this.genAI.getGenerativeModel({ 
+      model: config.model,
+      generationConfig
+    });
   }
 
-  async generateCompletion(messages: ChatMessage[], config: ModelConfig): Promise<ChatResponse> {
-    // Convert OpenAI format to Google format
-    const contents = messages.map(msg => ({
-      role: msg.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: msg.content }]
-    }));
+  async generateCompletion(messages: ChatMessage[], config: ModelConfig, options?: GenerateCompletionOptions): Promise<ChatResponse> {
+    try {
+      // Convert messages to Gemini format
+      const history = messages.slice(0, -1).map(msg => ({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: msg.content }]
+      }));
 
-    const response = await fetch(`${this.baseUrl}/models/${config.model}:generateContent?key=${this.apiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents,
+      const lastMessage = messages[messages.length - 1];
+      
+      // Start chat session with history
+      const chat = this.model.startChat({
+        history: history.length > 0 ? history : undefined
+      });
+
+      // Generate content
+      const result = await chat.sendMessage(lastMessage.content);
+      const response = await result.response;
+      const text = response.text();
+
+      return {
+        choices: [{
+          message: {
+            role: 'assistant' as const,
+            content: text
+          },
+          finish_reason: 'stop'
+        }],
+        usage: {
+          prompt_tokens: 0, // Gemini doesn't provide detailed token counts in free tier
+          completion_tokens: 0,
+          total_tokens: 0
+        }
+      };
+    } catch (error) {
+      console.error('Google Provider Error:', error);
+      throw new Error(`Google Gemini API error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async generateCompletionWithTools(messages: ChatMessage[], tools: any[], config: ModelConfig, options?: GenerateCompletionOptions): Promise<ChatResponse> {
+    try {
+      // For tool usage, we'll use function calling if available
+      const functionDeclarations = tools.map(tool => ({
+        name: tool.function.name,
+        description: tool.function.description,
+        parameters: tool.function.parameters
+      }));
+
+      const toolConfig = { functionDeclarations };
+      
+      // Create model with tools
+      const modelWithTools = this.genAI.getGenerativeModel({ 
+        model: config.model,
+        tools: [toolConfig],
         generationConfig: {
           temperature: config.temperature,
           maxOutputTokens: config.max_tokens,
           ...(config.top_p && { topP: config.top_p })
         }
-      })
-    });
+      });
 
-    if (!response.ok) {
-      throw new Error(`Google API error: ${response.statusText}`);
-    }
+      const history = messages.slice(0, -1).map(msg => ({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: msg.content }]
+      }));
 
-    const result = await response.json() as {
-      candidates: Array<{
-        content: { parts: Array<{ text: string }> };
-        finishReason: string;
-      }>;
-      usageMetadata?: {
-        promptTokenCount?: number;
-        candidatesTokenCount?: number;
-        totalTokenCount?: number;
-      };
-    };
-    
-    // Convert to OpenAI-like format
-    return {
-      choices: [{
-        message: {
-          role: 'assistant' as const,
-          content: result.candidates[0]?.content?.parts[0]?.text || ''
-        },
-        finish_reason: result.candidates[0]?.finishReason || 'stop'
-      }],
-      usage: {
-        prompt_tokens: result.usageMetadata?.promptTokenCount || 0,
-        completion_tokens: result.usageMetadata?.candidatesTokenCount || 0,
-        total_tokens: result.usageMetadata?.totalTokenCount || 0
+      const lastMessage = messages[messages.length - 1];
+      
+      const chat = modelWithTools.startChat({
+        history: history.length > 0 ? history : undefined
+      });
+
+      const result = await chat.sendMessage(lastMessage.content);
+      const response = await result.response;
+
+      // Check for function calls
+      const functionCalls = response.functionCalls();
+      
+      if (functionCalls && functionCalls.length > 0) {
+        return {
+          choices: [{
+            message: {
+              role: 'assistant' as const,
+              content: null,
+              tool_calls: functionCalls.map((call, index) => ({
+                id: `call_${index}`,
+                type: 'function' as const,
+                function: {
+                  name: call.name,
+                  arguments: JSON.stringify(call.args)
+                }
+              }))
+            },
+            finish_reason: 'tool_calls'
+          }],
+          usage: {
+            prompt_tokens: 0, // Gemini SDK doesn't provide detailed token counts consistently
+            completion_tokens: 0,
+            total_tokens: 0
+          }
+        };
       }
-    };
+
+      // Regular text response
+      const text = response.text();
+      return {
+        choices: [{
+          message: {
+            role: 'assistant' as const,
+            content: text
+          },
+          finish_reason: 'stop'
+        }],
+        usage: {
+          prompt_tokens: 0,
+          completion_tokens: 0,
+          total_tokens: 0
+        }
+      };
+    } catch (error) {
+      console.error('Google Provider Tool Error:', error);
+      throw new Error(`Google Gemini API tool error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 }
 
